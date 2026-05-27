@@ -10,7 +10,7 @@ namespace NtfyDesktop.Features.Settings;
 
 public class AppSettings
 {
-    private static readonly string _path = Path.Combine(App.DataPath, "settings.json");
+    private static string _path => Path.Combine(App.DataPath, "settings.json");
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {

@@ -12,11 +12,8 @@ public class HistoryRepository
 
     public HistoryRepository()
     {
-        var appData = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "NtfyDesktop");
-        Directory.CreateDirectory(appData);
-        _dbPath = Path.Combine(appData, "history.db");
+        Directory.CreateDirectory(App.DataPath);
+        _dbPath = Path.Combine(App.DataPath, "history.db");
         InitializeDatabase();
     }
 

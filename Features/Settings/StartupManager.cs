@@ -5,7 +5,7 @@ namespace NtfyDesktop.Features.Settings;
 public static class StartupManager
 {
     private const string REGISTRY_KEY = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    private const string VALUE_NAME = App.NAME + "v" + App.MAJOR_VERSION;
+    private const string VALUE_NAME = "Ntfy Desktop";
 
     public static void Apply(bool enable)
     {

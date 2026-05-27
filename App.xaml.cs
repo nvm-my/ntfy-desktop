@@ -16,12 +16,20 @@ namespace NtfyDesktop;
 public partial class App : Application
 {
     public const string NAME = "Ntfy Desktop";
-    public const string MAJOR_VERSION = "3";
-    private const string SINGLE_INSTANCE_MUTEX_NAME = NAME + "_v" + MAJOR_VERSION + "3_SingleInstance";
 
-    public static readonly string DataPath = Path.Combine(
+    // Default data folder. Can be overridden at launch with --data-path <dir>.
+    public static string DataPath { get; private set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "NtfyDesktop");
+
+    // Stable per-profile mutex so two instances with different --data-path values
+    // can run side-by-side, while still preventing duplicate instances of the same profile.
+    private static string SingleInstanceMutexName()
+    {
+        var normalized = Path.GetFullPath(DataPath).ToUpperInvariant();
+        var hash = normalized.Aggregate(2166136261u, (current, c) => (current ^ (byte) c) * 16777619u); // FNV-1a 32-bit
+        return $"NtfyDesktop_{hash:X8}_SingleInstance";
+    }
 
     private IHost? _host;
     private Mutex? _mutex;
@@ -35,6 +43,18 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // --data-path <dir> or --data-path=<dir>: override the default data folder.
+        // Must be set before anything else so AppSettings + HistoryRepository pick it up.
+        for (var i = 0; i < e.Args.Length; i++)
+        {
+            if (e.Args[i] == "--data-path" && i + 1 < e.Args.Length)
+            { DataPath = Path.GetFullPath(e.Args[i + 1]); break; }
+
+            if (!e.Args[i].StartsWith("--data-path=", StringComparison.Ordinal)) continue;
+            
+            DataPath = Path.GetFullPath(e.Args[i]["--data-path=".Length..]); break;
+        }
+
         // Surface anything fatal during startup instead of silently dying.
         DispatcherUnhandledException += (_, args) =>
         {
@@ -47,7 +67,7 @@ public partial class App : Application
             System.Windows.MessageBox.Show(args.ExceptionObject?.ToString() ?? "Unknown", $"{NAME} — fatal",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
 
-        _mutex = new Mutex(true, SINGLE_INSTANCE_MUTEX_NAME, out var isFirstInstance);
+        _mutex = new Mutex(true, SingleInstanceMutexName(), out var isFirstInstance);
         if (!isFirstInstance)
         {
             Shutdown(0);
