@@ -1,0 +1,184 @@
+<ui:FluentWindow x:Class="NtfyDesktop.Features.Shell.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:connections="clr-namespace:NtfyDesktop.Features.Connections"
+                 xmlns:feed="clr-namespace:NtfyDesktop.Features.Feed"
+                 xmlns:views="clr-namespace:NtfyDesktop.Features.Settings"
+                 xmlns:converters="clr-namespace:NtfyDesktop.Features.Shell.Converters"
+                 Title="ntfy Desktop"
+                 Width="1000"
+                 Height="660"
+                 MinWidth="760"
+                 MinHeight="480"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 Background="White"
+                 UseLayoutRounding="True"
+                 SnapsToDevicePixels="True"
+                 TextOptions.TextFormattingMode="Display"
+                 TextOptions.TextRenderingMode="ClearType"
+                 RenderOptions.ClearTypeHint="Enabled">
+
+    <ui:FluentWindow.Resources>
+        <converters:ConnectionStatusToBrushConverter x:Key="StatusBrush" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Three-dot button on each topic nav-rail item. Always visible;
+             docked to the right edge of the rail. -->
+        <Style x:Key="TopicMoreButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="ntfy Desktop">
+            <ui:TitleBar.Header>
+                <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <!-- Connection pip + label: pure connection health. -->
+                    <Ellipse Width="10" Height="10"
+                             Fill="{Binding ConnectionStatus, Converter={StaticResource StatusBrush}}"
+                             VerticalAlignment="Center" />
+                    <TextBlock Margin="8,0,0,0"
+                               Text="{Binding ConnectionStatusText}"
+                               VerticalAlignment="Center"
+                               Opacity="0.8" />
+
+                    <!-- Pause notifications: app-wide control, visible only while
+                         NOT paused. When paused, the banner below the title bar
+                         takes over as the resume affordance so we don't show two
+                         redundant controls for the same action. -->
+                    <ui:Button Margin="16,0,0,0"
+                               Appearance="Secondary"
+                               Content="{Binding PauseButtonLabel}"
+                               VerticalAlignment="Center"
+                               Command="{Binding TogglePauseCommand}"
+                               Visibility="{Binding ShowPauseButton, Converter={StaticResource BoolToVis}}">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Pause24" Filled="True" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+            </ui:TitleBar.Header>
+        </ui:TitleBar>
+
+        <!-- Caution strip: only visible while paused. Loud enough that the
+             paused state can't be missed even if the title-bar button is
+             ignored. Connections remain active wording is important — users
+             may otherwise think they need to reconnect. -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,8,16,8"
+                Visibility="{Binding IsGloballyPaused, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Grid.Column="0"
+                               Symbol="Pause24"
+                               Filled="True"
+                               FontSize="16"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <ui:TextBlock FontTypography="BodyStrong" Text="Notifications are paused" />
+                    <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                  FontTypography="Caption"
+                                  Text="Connections remain active and messages are still recorded — only toasts are suppressed." />
+                </StackPanel>
+                <ui:Button Grid.Column="2"
+                           Appearance="Primary"
+                           Content="Resume notifications"
+                           VerticalAlignment="Center"
+                           Command="{Binding TogglePauseCommand}">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="Play24" Filled="True" />
+                    </ui:Button.Icon>
+                </ui:Button>
+            </Grid>
+        </Border>
+
+        <ui:NavigationView Grid.Row="2"
+                           x:Name="RootNavigation"
+                           IsBackButtonVisible="Collapsed"
+                           IsPaneToggleVisible="False"
+                           PaneDisplayMode="Left"
+                           OpenPaneLength="220"
+                           Transition="None"
+                           TransitionDuration="0"
+                           SelectionChanged="OnNavigationSelectionChanged">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem x:Name="AllTopicsItem"
+                                       Content="All topics"
+                                       TargetPageType="{x:Type feed:FeedPage}"
+                                       Tag="">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Mail24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <!-- "Add topic" action item. No TargetPageType — Click handler
+                     opens the editor dialog and restores the prior selection. -->
+                <ui:NavigationViewItem x:Name="AddTopicItem"
+                                       Content="Add topic"
+                                       Click="OnAddTopicNavClicked">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Add24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItemSeparator x:Name="TopicsSeparator" />
+            </ui:NavigationView.MenuItems>
+
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Connections"
+                                       TargetPageType="{x:Type connections:ConnectionsPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="PlugConnected24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Settings"
+                                       TargetPageType="{x:Type views:SettingsPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
+    </Grid>
+</ui:FluentWindow>

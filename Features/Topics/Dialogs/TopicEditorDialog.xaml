@@ -1,0 +1,94 @@
+<ui:FluentWindow x:Class="NtfyDesktop.Features.Topics.Dialogs.TopicEditorDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                 xmlns:domain="clr-namespace:NtfyDesktop.Domain"
+                 Title="Topic"
+                 Width="460"
+                 SizeToContent="Height"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="None"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <ObjectDataProvider x:Key="Priorities"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="domain:Priority" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" />
+
+        <StackPanel Grid.Row="1" Margin="24,8,24,24">
+            <ui:TextBlock FontTypography="Subtitle" Text="Topic" />
+            <ui:TextBox Margin="0,4,0,16"
+                        PlaceholderText="e.g. alerts-prod"
+                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+            <ui:ToggleSwitch Margin="0,0,0,8"
+                             Content="Enabled (subscribe to this topic)"
+                             IsChecked="{Binding Enabled}" />
+            <ui:ToggleSwitch Margin="0,0,0,16"
+                             Content="Pause notifications for this topic"
+                             IsChecked="{Binding IsPaused}" />
+
+            <ui:ToggleSwitch Margin="0,0,0,4"
+                             Content="Override minimum priority"
+                             IsChecked="{Binding HasMinPriority}" />
+            <ComboBox Margin="0,0,0,16"
+                      IsEnabled="{Binding HasMinPriority}"
+                      ItemsSource="{Binding Source={StaticResource Priorities}}"
+                      SelectedItem="{Binding MinPriority}" />
+
+            <ui:ToggleSwitch Margin="0,0,0,4"
+                             Content="Override active hours"
+                             IsChecked="{Binding OverrideActiveHours}" />
+            <StackPanel Visibility="{Binding OverrideActiveHours, Converter={StaticResource BoolToVis}}">
+                <ui:ToggleSwitch Margin="0,0,0,8"
+                                 Content="Only notify during active hours"
+                                 IsChecked="{Binding ActiveHoursEnabled}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <ui:TextBlock Appearance="Tertiary" Text="Start (HH:mm)" />
+                        <ui:TextBox x:Name="StartBox" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <ui:TextBlock Appearance="Tertiary" Text="End (HH:mm)" />
+                        <ui:TextBox x:Name="EndBox" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,24,0,0">
+                <ui:Button Appearance="Secondary"
+                           Content="Cancel"
+                           Width="100"
+                           Margin="0,0,8,0"
+                           Click="OnCancelClicked" />
+                <ui:Button Appearance="Primary"
+                           Content="Save"
+                           Width="100"
+                           Click="OnSaveClicked" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

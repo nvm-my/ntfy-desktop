@@ -1,0 +1,211 @@
+<Page x:Class="NtfyDesktop.Features.Feed.FeedPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:sys="clr-namespace:System;assembly=mscorlib"
+      xmlns:converters="clr-namespace:NtfyDesktop.Features.Shell.Converters"
+      xmlns:domain="clr-namespace:NtfyDesktop.Domain"
+      Background="Transparent"
+      ScrollViewer.CanContentScroll="False"
+      Title="Feed">
+
+    <Page.Resources>
+        <converters:PriorityToBrushConverter x:Key="PriorityBrush" />
+        <converters:RelativeTimeConverter x:Key="RelTime" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Small icon button used for per-row actions on the feed (delete a single
+             message). No chrome at rest, subtle background on hover. -->
+        <Style x:Key="MessageRowButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd"
+                                        Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <ObjectDataProvider x:Key="Priorities"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="domain:Priority" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </Page.Resources>
+
+    <DockPanel LastChildFill="True" Background="Transparent">
+
+        <Grid DockPanel.Dock="Top" Margin="32,20,32,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <ui:TextBlock FontTypography="TitleLarge" Text="{Binding Title}" />
+                <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                              FontTypography="Body"
+                              Text="{Binding Subtitle}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:Button Appearance="Secondary"
+                           Content="Reconnect"
+                           Icon="{ui:SymbolIcon ArrowSync24}"
+                           Margin="0,0,8,0"
+                           Command="{Binding ReconnectCommand}"
+                           Visibility="{Binding ShowReconnectButton, Converter={StaticResource BoolToVis}}" />
+                <ui:Button Appearance="Secondary"
+                           Content="Clear"
+                           Icon="{ui:SymbolIcon Delete24}"
+                           Command="{Binding ClearCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid DockPanel.Dock="Top" Margin="32,0,32,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="180" />
+            </Grid.ColumnDefinitions>
+            <ui:TextBox Grid.Column="0"
+                        PlaceholderText="Search title, body, tags"
+                        Icon="{ui:SymbolIcon Search24}"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=200}" />
+            <ComboBox Grid.Column="1"
+                      Margin="12,0,0,0"
+                      ItemsSource="{Binding Source={StaticResource Priorities}}"
+                      SelectedItem="{Binding MinPriority}" />
+        </Grid>
+
+        <Grid Margin="32,0,0,0">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="380"
+                        Margin="0,0,32,0"
+                        Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+                <ui:SymbolIcon Symbol="Mail24"
+                               FontSize="48"
+                               Opacity="0.30"
+                               HorizontalAlignment="Center" />
+                <ui:TextBlock Margin="0,12,0,4"
+                              FontTypography="Subtitle"
+                              HorizontalAlignment="Center"
+                              Text="No notifications" />
+                <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                              FontTypography="Body"
+                              HorizontalAlignment="Center"
+                              TextAlignment="Center"
+                              TextWrapping="Wrap"
+                              Text="Nothing here yet. Messages arrive in real time once topics start sending." />
+            </StackPanel>
+
+            <ListBox ItemsSource="{Binding Messages}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Focusable" Value="False" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <!-- Right margin keeps each row's right edge aligned with the
+                             header/filter row above (which sits 32px from the window edge),
+                             while the ListBox itself extends to the edge so the scrollbar
+                             stays flush against the window. -->
+                        <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="0,14,0,14"
+                                Margin="0,0,32,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0"
+                                         Width="8" Height="8"
+                                         VerticalAlignment="Top"
+                                         Margin="0,8,12,0"
+                                         Fill="{Binding Priority, Converter={StaticResource PriorityBrush}}" />
+                                <StackPanel Grid.Column="1">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Border Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                                CornerRadius="3"
+                                                Padding="6,1">
+                                            <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                          FontTypography="Caption"
+                                                          Text="{Binding Topic}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <ui:TextBlock FontTypography="BodyStrong"
+                                                  Text="{Binding DisplayTitle}"
+                                                  TextTrimming="CharacterEllipsis" />
+                                    <ui:TextBlock Text="{Binding Body}"
+                                                  TextWrapping="Wrap"
+                                                  Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Top"
+                                            Margin="16,0,0,0">
+                                    <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                  FontTypography="Caption"
+                                                  Text="{Binding Timestamp, Converter={StaticResource RelTime}}"
+                                                  VerticalAlignment="Center" />
+                                    <!-- Always visible so users discover it; muted at rest,
+                                         brightens on hover via the button's own template. -->
+                                    <Button Style="{StaticResource MessageRowButton}"
+                                            Margin="8,0,0,0"
+                                            ToolTip="Delete this message"
+                                            Command="{Binding DataContext.DeleteMessageCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding}">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </DockPanel>
+</Page>

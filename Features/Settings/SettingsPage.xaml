@@ -1,0 +1,262 @@
+<Page x:Class="NtfyDesktop.Features.Settings.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:sys="clr-namespace:System;assembly=mscorlib"
+      xmlns:domain="clr-namespace:NtfyDesktop.Domain"
+      ScrollViewer.CanContentScroll="False"
+      Title="Settings">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <ObjectDataProvider x:Key="Priorities"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="domain:Priority" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+
+        <Style x:Key="SettingRow" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="0,14,0,14" />
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="ui:TextBlock">
+            <Setter Property="FontTypography" Value="BodyStrong" />
+            <Setter Property="Margin" Value="0,28,0,4" />
+        </Style>
+
+        <Style x:Key="RowTitle" TargetType="ui:TextBlock">
+            <Setter Property="FontTypography" Value="Body" />
+        </Style>
+
+        <Style x:Key="RowDescription" TargetType="ui:TextBlock">
+            <Setter Property="FontTypography" Value="Caption" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+    </Page.Resources>
+
+    <DockPanel LastChildFill="True" Margin="0,0,0,0" Background="Transparent">
+
+        <Grid DockPanel.Dock="Top" Margin="32,20,32,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <ui:TextBlock FontTypography="TitleLarge" Text="Settings" />
+                <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                              FontTypography="Body"
+                              Text="Server, defaults, and topic subscriptions." />
+            </StackPanel>
+            <!-- Unsaved-changes pill: visible in the page header so users see it
+                 without scrolling all the way down to the Save button. -->
+            <Border Grid.Column="1"
+                    Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                    CornerRadius="4"
+                    Padding="10,4,10,4"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding IsDirty, Converter={StaticResource BoolToVis}}">
+                <ui:TextBlock FontTypography="Caption"
+                              VerticalAlignment="Center"
+                              Text="• Unsaved changes" />
+            </Border>
+        </Grid>
+
+        <ScrollViewer x:Name="MainScroll"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Background="Transparent"
+                      Padding="32,0,32,0">
+            
+            <StackPanel Background="Transparent">
+
+                <!-- ======================= SERVER ======================= -->
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Server" Margin="0,12,0,4" />
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Server URL" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="ntfy instance to connect to." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <ui:TextBox Width="320"
+                                        PlaceholderText="https://ntfy.sh"
+                                        Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:TextBlock Margin="0,4,0,0"
+                                          Width="320"
+                                          TextWrapping="Wrap"
+                                          HorizontalAlignment="Right"
+                                          FontTypography="Caption"
+                                          Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                          Text="{Binding ServerUrlError}"
+                                          Visibility="{Binding HasServerUrlError, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Access token" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Optional bearer token for authenticated topics." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <PasswordBox x:Name="TokenBox"
+                                         Width="320"
+                                         PasswordChanged="OnTokenChanged" />
+                            <!-- Cleartext transit warning: when ServerUrl uses http:// and a
+                                 token is set, TopicConnection refuses to attach the bearer
+                                 header. Tell the user why. -->
+                            <ui:TextBlock Margin="0,4,0,0"
+                                          Width="320"
+                                          TextWrapping="Wrap"
+                                          HorizontalAlignment="Right"
+                                          FontTypography="Caption"
+                                          Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                          Text="⚠ This server uses plain HTTP. The token will not be sent — switch to HTTPS for authentication."
+                                          Visibility="{Binding HasInsecureTokenWarning, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ======================= DEFAULTS ======================= -->
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Defaults" />
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Minimum priority (global)" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Drop messages below this priority. Per-topic overrides take precedence." />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1"
+                                  Width="160"
+                                  VerticalAlignment="Center"
+                                  ItemsSource="{Binding Source={StaticResource Priorities}}"
+                                  SelectedItem="{Binding GlobalMinPriority, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="History retention" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Older messages are pruned by the background sweep." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:NumberBox Width="120"
+                                          Minimum="1"
+                                          Maximum="365"
+                                          ClearButtonEnabled="False"
+                                          Value="{Binding HistoryRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          Text="days" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ======================= SYSTEM ======================= -->
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="System" />
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Start with Windows" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Launch this app at sign-in (minimised to tray)." />
+                        </StackPanel>
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding StartWithWindows, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </Border>
+
+                <!-- ======================= ACTIVE HOURS ======================= -->
+                <ui:TextBlock Style="{StaticResource SectionTitle}" Text="Active hours" />
+
+                <Border Style="{StaticResource SettingRow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Only notify during active hours" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Outside this window messages are still recorded but no toast is shown." />
+                        </StackPanel>
+                        <ui:ToggleSwitch Grid.Column="1"
+                                         VerticalAlignment="Center"
+                                         IsChecked="{Binding ActiveHoursEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </Border>
+
+                <Border Style="{StaticResource SettingRow}"
+                        Visibility="{Binding ActiveHoursEnabled, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <ui:TextBlock Style="{StaticResource RowTitle}" Text="Window" />
+                            <ui:TextBlock Style="{StaticResource RowDescription}" Text="Wraps past midnight when end &lt; start (e.g. 22:00 → 06:00)." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:TextBox Width="80"
+                                        Text="{Binding ActiveHoursStartText, UpdateSourceTrigger=PropertyChanged}" />
+                            <ui:TextBlock Margin="8,0,8,0"
+                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                          VerticalAlignment="Center"
+                                          Text="to" />
+                            <ui:TextBox Width="80"
+                                        Text="{Binding ActiveHoursEndText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ======================= ACTIONS ======================= -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,28,0,28">
+                    <ui:Button Appearance="Secondary"
+                               Content="Discard"
+                               Width="120"
+                               Margin="0,0,8,0"
+                               Click="OnDiscardClicked" />
+                    <ui:Button Appearance="Primary"
+                               Content="Save"
+                               Width="120"
+                               IsEnabled="{Binding CanSave}"
+                               Click="OnSaveClicked" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Page>
