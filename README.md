@@ -100,6 +100,12 @@ Planned, in rough order. Open an issue if you'd like to discuss priorities or pr
 
 Pre-built releases are published on the [Releases](../../releases) page as a single self-contained `.exe` — no installer required. Download, place anywhere, run.
 
+### First run: Windows SmartScreen
+
+The app is not yet code-signed, so the first time you run it Windows SmartScreen may show a *"Windows protected your PC"* dialog. This is expected for unsigned software that has not yet built up a download reputation — it does not indicate a problem with the application. To continue, click **More info**, then **Run anyway**.
+
+If you prefer to verify the binary first, every release's notes include a [VirusTotal](https://www.virustotal.com/) scan link for that build; you can also upload the downloaded `.exe` to VirusTotal yourself. Code signing is on the roadmap, which will remove this prompt.
+
 ## Building from source
 
 ```bash
