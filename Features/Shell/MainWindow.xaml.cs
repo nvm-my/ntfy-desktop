@@ -36,7 +36,7 @@ public partial class MainWindow : FluentWindow
     private readonly FeedViewModel _feedVm;
     private readonly SettingsViewModel _settingsVm;
     private readonly TopicsViewModel _topicsVm;
-    private readonly Dictionary<string, RailItem> _railItems = new();
+    private readonly Dictionary<Guid, RailItem> _railItems = new();
 
     private sealed record RailItem(NavigationViewItem Item, Ellipse Pip, SymbolIcon PauseGlyph);
 
@@ -109,7 +109,7 @@ public partial class MainWindow : FluentWindow
     private void OnGateChanged(object? sender, EventArgs e) =>
         Dispatcher.Invoke(RefreshTopicAdornments);
 
-    private void OnTopicPauseChanged(object? sender, string topicName) =>
+    private void OnTopicPauseChanged(object? sender, Guid topicId) =>
         Dispatcher.Invoke(RefreshTopicAdornments);
 
     private void RebuildTopicItems()
@@ -135,8 +135,8 @@ public partial class MainWindow : FluentWindow
         var insertAt = anchorIdx + 1;
         foreach (var t in topics)
         {
-            var item = BuildTopicNavItem(t.Name);
-            _railItems[t.Name] = item;
+            var item = BuildTopicNavItem(t);
+            _railItems[t.Id] = item;
             menu.Insert(insertAt++, item.Item);
             ApplyEnabledStyling(item.Item, t.Enabled);
         }
@@ -144,7 +144,7 @@ public partial class MainWindow : FluentWindow
         RefreshTopicAdornments();
     }
 
-    private RailItem BuildTopicNavItem(string topicName)
+    private RailItem BuildTopicNavItem(TopicSettings topic)
     {
         var pip = new Ellipse
         {
@@ -156,7 +156,7 @@ public partial class MainWindow : FluentWindow
         };
         var label = new System.Windows.Controls.TextBlock
         {
-            Text = topicName,
+            Text = topic.EffectiveDisplayName,
             VerticalAlignment = VerticalAlignment.Center,
         };
         // Pause glyph: appears after the label when the topic is effectively
@@ -179,7 +179,7 @@ public partial class MainWindow : FluentWindow
         {
             Style = (Style)FindResource("TopicMoreButton"),
             Content = new SymbolIcon { Symbol = SymbolRegular.MoreHorizontal24, FontSize = 14 },
-            Tag = topicName,
+            Tag = topic.Id,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 0, 0),
         };
@@ -209,8 +209,8 @@ public partial class MainWindow : FluentWindow
         var item = new NavigationViewItem
         {
             Content = content,
-            // Tag drives _feedVm.CurrentTopic in OnNavigationSelectionChanged.
-            Tag = topicName,
+            // Tag (TopicId) drives _feedVm.CurrentTopicId in OnNavigationSelectionChanged.
+            Tag = topic.Id,
             TargetPageType = typeof(FeedPage),
             Icon = new SymbolIcon { Symbol = SymbolRegular.Tag24 },
             // Stretch content so the right-docked more-button reaches the
@@ -232,14 +232,14 @@ public partial class MainWindow : FluentWindow
     {
         foreach (var state in _connections.GetTopicStates())
         {
-            if (!_railItems.TryGetValue(state.TopicName, out var rail)) continue;
+            if (!_railItems.TryGetValue(state.TopicId, out var rail)) continue;
 
             rail.Pip.Fill = PipBrushFor(state.Status);
-            rail.PauseGlyph.Visibility = _gate.IsTopicPaused(state.TopicName)
+            rail.PauseGlyph.Visibility = _gate.IsTopicPaused(state.TopicId)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            var topic = _settings.GetTopicSettings(state.TopicName);
+            var topic = _settings.GetTopicById(state.TopicId);
             if (topic is not null)
                 ApplyEnabledStyling(rail.Item, topic.Enabled);
         }
@@ -258,9 +258,8 @@ public partial class MainWindow : FluentWindow
         if (sender.SelectedItem is not NavigationViewItem item) return;
         if (item.TargetPageType != typeof(FeedPage)) return;
 
-        // Tag is "" for All topics; otherwise the topic name.
-        var tag = item.Tag as string;
-        _feedVm.CurrentTopic = string.IsNullOrEmpty(tag) ? null : tag;
+        // Topic items carry their TopicId as Tag; "All topics" carries "" (string).
+        _feedVm.CurrentTopicId = item.Tag is Guid id ? id : null;
     }
 
     // ===== Add topic action =====
@@ -279,7 +278,7 @@ public partial class MainWindow : FluentWindow
             var dialog = new TopicEditorDialog(existing: null) { Owner = this };
             if (dialog.ShowDialog() != true || dialog.Result is null) return;
 
-            await _topicsVm.AddOrUpdateAsync(dialog.Result, newTopicSettings: null);
+            await _topicsVm.AddOrUpdateAsync(dialog.Result, original: null);
         }
         catch (Exception ex)
         {
@@ -308,7 +307,7 @@ public partial class MainWindow : FluentWindow
     // (they operate on already-saved topics).
     private async Task<bool> EnsureServerConfiguredAsync()
     {
-        var url = _settings.ServerUrl?.Trim() ?? string.Empty;
+        var url = _settings.DefaultServer.Url?.Trim() ?? string.Empty;
         var valid = !string.IsNullOrEmpty(url)
                     && Uri.TryCreate(url, UriKind.Absolute, out var u)
                     && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps);
@@ -327,9 +326,9 @@ public partial class MainWindow : FluentWindow
     private void OnTopicMoreClicked(object sender, RoutedEventArgs e)
     {
         e.Handled = true;
-        if (sender is not System.Windows.Controls.Button btn || btn.Tag is not string topicName) return;
+        if (sender is not System.Windows.Controls.Button btn || btn.Tag is not Guid topicId) return;
 
-        var menu = BuildTopicContextMenu(topicName);
+        var menu = BuildTopicContextMenu(topicId);
         if (menu.Items.Count == 0) return;
 
         menu.PlacementTarget = btn;
@@ -337,13 +336,13 @@ public partial class MainWindow : FluentWindow
         menu.IsOpen = true;
     }
 
-    private ContextMenu BuildTopicContextMenu(string topicName)
+    private ContextMenu BuildTopicContextMenu(Guid topicId)
     {
         var menu = new ContextMenu();
-        var topic = _settings.GetTopicSettings(topicName);
+        var topic = _settings.GetTopicById(topicId);
         if (topic is null) return menu;
 
-        var isTopicSpecificallyPaused = _gate.IsTopicSpecificallyPaused(topicName);
+        var isTopicSpecificallyPaused = _gate.IsTopicSpecificallyPaused(topicId);
         var isEnabled = topic.Enabled;
         var globallyPaused = _gate.IsGloballyPaused;
 
@@ -365,8 +364,8 @@ public partial class MainWindow : FluentWindow
         };
         pauseItem.Click += (_, _) =>
         {
-            if (isTopicSpecificallyPaused) _gate.ResumeTopic(topicName);
-            else                           _gate.PauseTopic(topicName);
+            if (isTopicSpecificallyPaused) _gate.ResumeTopic(topicId);
+            else                           _gate.PauseTopic(topicId);
         };
 
         // Force-reconnect. Only meaningful while the topic is enabled (otherwise
@@ -377,7 +376,7 @@ public partial class MainWindow : FluentWindow
             Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowSync24, FontSize = 14 },
             IsEnabled = isEnabled,
         };
-        reconnectItem.Click += (_, _) => _connections.ReconnectTopic(topicName);
+        reconnectItem.Click += (_, _) => _connections.ReconnectTopic(topicId);
 
         // Disable tears down the socket (no messages received); enable starts
         // it back up. Same persistence path as the editor dialog.
@@ -403,7 +402,7 @@ public partial class MainWindow : FluentWindow
             {
                 var dialog = new TopicEditorDialog(topic) { Owner = this };
                 if (dialog.ShowDialog() != true || dialog.Result is null) return;
-                await _topicsVm.AddOrUpdateAsync(dialog.Result, newTopicSettings: topic);
+                await _topicsVm.AddOrUpdateAsync(dialog.Result, original: topic);
             }
             catch (Exception ex)
             {
@@ -434,19 +433,16 @@ public partial class MainWindow : FluentWindow
     /// after a toast click forwards us a ntfy-desktop:// URL. If the topic is no
     /// longer subscribed (user removed it), falls back to "All topics".
     /// </summary>
-    public void NavigateToTopic(string? topicName)
+    public void NavigateToTopic(Guid topicId)
     {
         RootNavigation.Navigate(typeof(FeedPage));
 
         // The rail's visual selection lands on AllTopicsItem (the first item with
-        // TargetPageType=FeedPage). Setting the VM's CurrentTopic afterwards drives
+        // TargetPageType=FeedPage). Setting the VM's CurrentTopicId afterwards drives
         // the feed content to the requested topic. The rail won't visually highlight
         // the per-topic item — WPF-UI's NavigationView.SelectedItem setter isn't
         // public so we can't fix that without poking template internals.
-        _feedVm.CurrentTopic =
-            !string.IsNullOrEmpty(topicName) && _railItems.ContainsKey(topicName)
-                ? topicName
-                : null;
+        _feedVm.CurrentTopicId = _railItems.ContainsKey(topicId) ? topicId : null;
     }
 
     protected override void OnClosing(CancelEventArgs e)

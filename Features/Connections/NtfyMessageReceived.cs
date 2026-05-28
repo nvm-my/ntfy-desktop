@@ -1,6 +1,9 @@
-﻿using FastEndpoints;
+using FastEndpoints;
 using NtfyDesktop.Domain;
 
 namespace NtfyDesktop.Features.Connections;
 
-public record NtfyMessageReceived(NtfyMessage Message) : IEvent;
+// TopicId identifies which configured topic (and therefore which server) the
+// message arrived on — needed downstream because topic names are no longer unique
+// across servers.
+public record NtfyMessageReceived(NtfyMessage Message, Guid TopicId) : IEvent;

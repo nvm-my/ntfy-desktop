@@ -39,10 +39,10 @@ public sealed partial class ConnectionsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Reconnect(string? topicName)
+    private void Reconnect(Guid topicId)
     {
-        if (string.IsNullOrEmpty(topicName)) return;
-        _connections.ReconnectTopic(topicName);
+        if (topicId == Guid.Empty) return;
+        _connections.ReconnectTopic(topicId);
     }
 
     [RelayCommand]
@@ -65,12 +65,16 @@ public sealed class TopicConnectionRow
 
     public TopicConnectionRow(TopicConnectionState state)
     {
+        TopicId = state.TopicId;
         TopicName = state.TopicName;
+        DisplayName = state.DisplayName;
         ConnectionStatus = state.Status;
         LastError = state.LastError;
     }
 
+    public Guid TopicId { get; }
     public string TopicName { get; }
+    public string DisplayName { get; }
     public TopicConnectionStatus ConnectionStatus { get; }
     public string? LastError { get; }
 

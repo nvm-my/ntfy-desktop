@@ -5,12 +5,13 @@ using NtfyDesktop.Domain;
 
 namespace NtfyDesktop.Features.Connections;
 
-public sealed class TopicConnection(string topicName, Func<string> getServerUrl, Func<string> getToken) : IAsyncDisposable
+public sealed class TopicConnection(Guid topicId, string topicName, Func<string> getServerUrl, Func<string> getToken) : IAsyncDisposable
 {
     private CancellationTokenSource _cts = new();
     private Task _runTask = Task.CompletedTask;
     private TopicConnectionStatus _status = TopicConnectionStatus.Disconnected;
 
+    public Guid TopicId => topicId;
     public string TopicName => topicName;
     public TopicConnectionStatus Status => _status;
     public string? LastError { get; private set; }

@@ -6,11 +6,12 @@ using NtfyDesktop.Domain;
 using NtfyDesktop.Features.Connections;
 using NtfyDesktop.Features.History;
 using NtfyDesktop.Features.Notifications;
+using NtfyDesktop.Features.Settings;
 
 namespace NtfyDesktop.Features.Feed;
 
 // Backs the message feed for both All-topics and per-topic views.
-// CurrentTopic == null means "all topics".
+// CurrentTopicId == null means "all topics".
 public sealed partial class FeedViewModel : ObservableObject
 {
     private const int MaxDisplayed = 500;
@@ -18,29 +19,37 @@ public sealed partial class FeedViewModel : ObservableObject
     private readonly HistoryRepository _history;
     private readonly ConnectionManager _connections;
     private readonly NotificationGate _gate;
+    private readonly AppSettings _settings;
 
-    [ObservableProperty] private string? _currentTopic;
+    [ObservableProperty] private Guid? _currentTopicId;
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private Priority _minPriority = Priority.Min;
     [ObservableProperty] private bool _isEmpty = true;
     [ObservableProperty] private bool _isLoading;
 
-    // True when CurrentTopic is set and its connection is unhealthy
+    // True when CurrentTopicId is set and its connection is unhealthy
     // (not Connected and not Paused). Drives the Reconnect button in the header.
     [ObservableProperty] private bool _showReconnectButton;
 
     public ObservableCollection<HistoryMessage> Messages { get; } = new();
 
-    public string Title => string.IsNullOrEmpty(CurrentTopic) ? "All topics" : CurrentTopic!;
-    public string Subtitle => string.IsNullOrEmpty(CurrentTopic)
-        ? "Messages from every subscribed topic."
-        : $"Messages from {CurrentTopic}.";
+    public string Title =>
+        CurrentTopicId is null ? "All topics" : (TopicName() ?? "Topic");
 
-    public FeedViewModel(HistoryRepository history, ConnectionManager connections, NotificationGate gate)
+    public string Subtitle =>
+        CurrentTopicId is null
+            ? "Messages from every subscribed topic."
+            : $"Messages from {TopicName() ?? "this topic"}.";
+
+    private string? TopicName() =>
+        CurrentTopicId is { } id ? _settings.GetTopicById(id)?.EffectiveDisplayName : null;
+
+    public FeedViewModel(HistoryRepository history, ConnectionManager connections, NotificationGate gate, AppSettings settings)
     {
         _history = history;
         _connections = connections;
         _gate = gate;
+        _settings = settings;
         history.MessageInserted += OnHistoryMessageInserted;
         connections.ConnectionStatusChanged += OnConnectionsChanged;
         gate.GlobalStatusChanged += OnGateChanged;
@@ -54,10 +63,10 @@ public sealed partial class FeedViewModel : ObservableObject
     private void OnGateChanged(object? sender, EventArgs e) =>
         Application.Current?.Dispatcher.Invoke(RefreshReconnectVisibility);
 
-    private void OnTopicPauseChanged(object? sender, string topicName) =>
+    private void OnTopicPauseChanged(object? sender, Guid topicId) =>
         Application.Current?.Dispatcher.Invoke(RefreshReconnectVisibility);
 
-    partial void OnCurrentTopicChanged(string? value)
+    partial void OnCurrentTopicIdChanged(Guid? value)
     {
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Subtitle));
@@ -67,13 +76,13 @@ public sealed partial class FeedViewModel : ObservableObject
 
     private void RefreshReconnectVisibility()
     {
-        if (string.IsNullOrEmpty(CurrentTopic))
+        if (CurrentTopicId is not { } id)
         {
             ShowReconnectButton = false;
             return;
         }
         var state = _connections.GetTopicStates()
-            .FirstOrDefault(t => t.TopicName == CurrentTopic);
+            .FirstOrDefault(t => t.TopicId == id);
         if (state is null)
         {
             ShowReconnectButton = false;
@@ -83,15 +92,15 @@ public sealed partial class FeedViewModel : ObservableObject
         // even when paused (pause only gates toasts), but if it's not Connected
         // and the topic is paused, "reconnect" doesn't really make sense as the
         // primary call to action.
-        ShowReconnectButton = !_gate.IsTopicPaused(CurrentTopic!)
+        ShowReconnectButton = !_gate.IsTopicPaused(id)
             && state.Status != TopicConnectionStatus.Connected;
     }
 
     [RelayCommand]
     private void Reconnect()
     {
-        if (string.IsNullOrEmpty(CurrentTopic)) return;
-        _connections.ReconnectTopic(CurrentTopic!);
+        if (CurrentTopicId is { } id)
+            _connections.ReconnectTopic(id);
     }
     partial void OnSearchTextChanged(string value) => _ = ReloadAsync();
     partial void OnMinPriorityChanged(Priority value) => _ = ReloadAsync();
@@ -100,13 +109,13 @@ public sealed partial class FeedViewModel : ObservableObject
     {
         IsLoading = true;
 
-        var topic = CurrentTopic;
+        var topicId = CurrentTopicId;
         var minP = MinPriority;
         var search = SearchText;
 
         var loaded = await Task.Run(() =>
         {
-            var raw = _history.Query(topic: topic, minPriority: minP, limit: MaxDisplayed);
+            var raw = _history.Query(topicId: topicId, minPriority: minP, limit: MaxDisplayed);
             return string.IsNullOrWhiteSpace(search)
                 ? raw
                 : raw.Where(m => Matches(m, search)).ToList();
@@ -123,7 +132,7 @@ public sealed partial class FeedViewModel : ObservableObject
 
     private void OnHistoryMessageInserted(object? sender, HistoryMessage m)
     {
-        if (!string.IsNullOrEmpty(CurrentTopic) && m.Topic != CurrentTopic) return;
+        if (CurrentTopicId is { } id && m.TopicId != id) return;
         if (m.Priority < MinPriority) return;
         if (!string.IsNullOrWhiteSpace(SearchText) && !Matches(m, SearchText)) return;
 
@@ -145,10 +154,10 @@ public sealed partial class FeedViewModel : ObservableObject
     [RelayCommand]
     private void Clear()
     {
-        if (string.IsNullOrEmpty(CurrentTopic))
-            _history.DeleteAll();
+        if (CurrentTopicId is { } id)
+            _history.DeleteByTopicId(id);
         else
-            _history.DeleteByTopic(CurrentTopic!);
+            _history.DeleteAll();
 
         Messages.Clear();
         IsEmpty = true;

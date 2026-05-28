@@ -64,8 +64,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void Load()
     {
         _loading = true;
-        ServerUrl            = _settings.ServerUrl;
-        AccessToken          = _settings.GetAccessToken();
+        ServerUrl            = _settings.DefaultServer.Url;
+        AccessToken          = _settings.DefaultServer.GetAccessToken();
         GlobalMinPriority    = _settings.GlobalMinPriority;
         HistoryRetentionDays = _settings.HistoryRetentionDays;
         StartWithWindows     = StartupManager.IsEnabled();
@@ -79,7 +79,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>True if the settings file currently has a saved (encrypted) token.</summary>
-    public bool HasStoredAccessToken => !string.IsNullOrEmpty(_settings.EncryptedAccessToken);
+    public bool HasStoredAccessToken => !string.IsNullOrEmpty(_settings.DefaultServer.EncryptedAccessToken);
 
     /// <summary>Null if ServerUrl is valid; an error message otherwise.</summary>
     public string? ServerUrlError
@@ -120,9 +120,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         var urlChanged   = !string.Equals(_snapshot.ServerUrl, newUrl, StringComparison.Ordinal);
         var tokenChanged = !string.Equals(_snapshot.AccessToken, AccessToken, StringComparison.Ordinal);
 
-        _settings.ServerUrl = newUrl;
+        _settings.DefaultServer.Url = newUrl;
         if (tokenChanged)
-            _settings.SetAccessToken(AccessToken);
+            _settings.DefaultServer.SetAccessToken(AccessToken);
 
         _settings.GlobalMinPriority    = GlobalMinPriority;
         _settings.HistoryRetentionDays = HistoryRetentionDays;

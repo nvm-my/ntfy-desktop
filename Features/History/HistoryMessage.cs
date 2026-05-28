@@ -7,6 +7,7 @@ public class HistoryMessage
     public long RowId { get; set; }
     public string MessageId { get; set; } = string.Empty;
     public string Topic { get; set; } = string.Empty;
+    public Guid TopicId { get; set; }
     public DateTimeOffset Timestamp { get; set; }
     public Priority Priority { get; set; } = Priority.Default;
     public string? Title { get; set; }

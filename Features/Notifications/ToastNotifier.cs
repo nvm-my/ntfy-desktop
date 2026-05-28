@@ -34,7 +34,7 @@ public class ToastNotifier
         }
     }
 
-    public void Show(NtfyMessage message)
+    public void Show(NtfyMessage message, Guid topicId)
     {
         if (_notifier == null) return;
 
@@ -51,7 +51,7 @@ public class ToastNotifier
 
             var body = message.Message ?? string.Empty;
 
-            var xml = BuildToastXml(title, body, message.Topic, message.Priority, message.Click, message.Id);
+            var xml = BuildToastXml(title, body, message.Topic, message.Priority, message.Click, topicId);
             var toast = new ToastNotification(xml)
             {
                 // Group toasts by topic; tag by message id so duplicates replace rather than stack
@@ -64,7 +64,7 @@ public class ToastNotifier
         catch { /* toast delivery failure is non-fatal */ }
     }
 
-    private static XmlDocument BuildToastXml(string title, string body, string topic, Priority priority, string? clickUrl, string messageId)
+    private static XmlDocument BuildToastXml(string title, string body, string topic, Priority priority, string? clickUrl, Guid topicId)
     {
         // Urgent: persistent toast + alarm sound until dismissed
         var scenarioAttr = priority == Priority.Urgent ? @" scenario=""urgent""" : string.Empty;
@@ -76,7 +76,7 @@ public class ToastNotifier
         // Other schemes from the publisher are refused (see Domain/SafeUrl.cs).
         var launchUrl = SafeUrl.IsAllowed(clickUrl)
             ? clickUrl!
-            : BuildAppActivationUrl(topic, messageId);
+            : BuildAppActivationUrl(topicId);
         var clickAttrs = $@" activationType=""protocol"" launch=""{EscapeXml(launchUrl)}""";
 
         var audioElement = priority switch
@@ -117,8 +117,8 @@ public class ToastNotifier
     private static string TruncateTag(string id) =>
         string.IsNullOrEmpty(id) ? string.Empty : (id.Length <= 64 ? id : id[..64]);
 
-    private static string BuildAppActivationUrl(string topic, string messageId) =>
-        $"{ProtocolRegistration.SCHEME}://show?topic={Uri.EscapeDataString(topic)}&msg={Uri.EscapeDataString(messageId)}";
+    private static string BuildAppActivationUrl(Guid topicId) =>
+        $"{ProtocolRegistration.SCHEME}://show?topic={topicId}";
 
     private static string EscapeXml(string value) =>
         value

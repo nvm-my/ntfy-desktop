@@ -3,6 +3,7 @@ using Microsoft.Win32;
 using NtfyDesktop.Domain;
 using NtfyDesktop.Features.History;
 using NtfyDesktop.Features.Settings;
+using NtfyDesktop.Features.Topics;
 
 namespace NtfyDesktop.Features.Connections;
 
@@ -10,11 +11,14 @@ namespace NtfyDesktop.Features.Connections;
 // concerns only — pause (whether toasts are delivered) lives in
 // Features.Notifications.NotificationGate. Consumers that need both axes
 // compose them at the call site.
+//
+// Keyed by TopicId (not topic name): topic names are no longer unique across
+// servers, and each topic resolves its own server's URL + token.
 public sealed class ConnectionManager : IAsyncDisposable
 {
     private readonly AppSettings _settings;
     private readonly HistoryRepository _history;
-    private readonly Dictionary<string, TopicConnection> _connections = new();
+    private readonly Dictionary<Guid, TopicConnection> _connections = new();
 
     public event EventHandler? ConnectionStatusChanged;
     public event EventHandler? TopicsChanged;
@@ -41,17 +45,19 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     /// <summary>
     /// Per-topic connection snapshot. Sourced from configured topics so the UI
-    /// can show topics that haven't connected yet (or whose connection failed
-    /// and was removed); the live connection is looked up where available.
-    /// Pause is a separate axis — query NotificationGate at the call site.
+    /// can show topics that haven't connected yet; the live connection is looked
+    /// up by TopicId where available. Pause is a separate axis — query
+    /// NotificationGate at the call site.
     /// </summary>
     public IReadOnlyList<TopicConnectionState> GetTopicStates() =>
         _settings.Topics
-            .Select(topicSettings =>
+            .Select(topic =>
             {
-                _connections.TryGetValue(topicSettings.Name, out var conn);
+                _connections.TryGetValue(topic.Id, out var conn);
                 return new TopicConnectionState(
-                    topicSettings.Name,
+                    topic.Id,
+                    topic.Name,
+                    topic.EffectiveDisplayName,
                     conn?.Status ?? TopicConnectionStatus.Disconnected,
                     conn?.LastError);
             })
@@ -61,29 +67,26 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// Idempotent: brings the live connection set in line with the configured
     /// enabled topics. Removes connections for topics that disappeared / became
     /// disabled, adds connections for newly-enabled topics, leaves untouched
-    /// connections alone. Use RestartAllAsync() when ServerUrl or AccessToken
+    /// connections alone. Use RestartAllAsync() when a server's URL or token
     /// changed and existing sockets must reauthenticate.
     /// </summary>
     public async Task ApplySettingsAsync()
     {
-        var desiredTopics = _settings.Topics
-            .Where(t => t.Enabled)
-            .Select(t => t.Name)
-            .ToHashSet();
+        var desired = _settings.Topics.Where(t => t.Enabled).ToDictionary(t => t.Id);
 
         // Stop and remove connections that are no longer wanted.
-        foreach (var name in _connections.Keys.Except(desiredTopics).ToList())
-            await RemoveConnectionAsync(name);
+        foreach (var id in _connections.Keys.Except(desired.Keys).ToList())
+            await RemoveConnectionAsync(id);
 
         // Add connections for newly-enabled topics; existing ones keep running.
-        foreach (var name in desiredTopics.Except(_connections.Keys).ToList())
-            AddConnection(name);
+        foreach (var id in desired.Keys.Except(_connections.Keys).ToList())
+            AddConnection(desired[id]);
 
         ConnectionStatusChanged?.Invoke(this, EventArgs.Empty);
         TopicsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // Full teardown + fresh start. Called when ServerUrl or AccessToken changed
+    // Full teardown + fresh start. Called when a server's URL or token changed
     // (existing sockets need to reauthenticate) and from the user-facing
     // "Reconnect all" action.
     public async Task RestartAllAsync()
@@ -95,9 +98,9 @@ public sealed class ConnectionManager : IAsyncDisposable
         await ApplySettingsAsync();
     }
 
-    public void ReconnectTopic(string topicName)
+    public void ReconnectTopic(Guid topicId)
     {
-        if (_connections.TryGetValue(topicName, out var conn))
+        if (_connections.TryGetValue(topicId, out var conn))
             conn.ForceReconnect();
     }
 
@@ -121,31 +124,35 @@ public sealed class ConnectionManager : IAsyncDisposable
         TopicsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void AddConnection(string topicName)
+    private void AddConnection(TopicSettings topic)
     {
+        var server = _settings.GetServer(topic.ServerId);
+        if (server is null) return; // orphaned topic (server removed) — skip silently
+
         var conn = new TopicConnection(
-            topicName,
-            () => _settings.ServerUrl,
-            () => _settings.GetAccessToken());
+            topic.Id,
+            topic.Name,
+            () => server.Url,
+            () => server.GetAccessToken());
 
         conn.MessageReceived += OnMessageReceived;
         conn.StateChanged += OnTopicConnectionStatusChanged;
 
-        _connections[topicName] = conn;
+        _connections[topic.Id] = conn;
 
         conn.Start();
     }
 
-    private async Task RemoveConnectionAsync(string topicName)
+    private async Task RemoveConnectionAsync(Guid topicId)
     {
-        if (!_connections.TryGetValue(topicName, out var conn)) return;
+        if (!_connections.TryGetValue(topicId, out var conn)) return;
 
         conn.MessageReceived -= OnMessageReceived;
         conn.StateChanged -= OnTopicConnectionStatusChanged;
 
         await conn.StopAsync();
 
-        _connections.Remove(topicName);
+        _connections.Remove(topicId);
     }
 
     private void OnTopicConnectionStatusChanged(object? sender, TopicConnectionStatus status)
@@ -155,9 +162,14 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private void OnMessageReceived(object? sender, NtfyMessage message)
     {
-        _history.Insert(message);
+        if (sender is not TopicConnection conn) return;
 
-        new NtfyMessageReceived(message).PublishAsync(Mode.WaitForNone);
+        var topic = _settings.GetTopicById(conn.TopicId);
+        var serverId = topic?.ServerId ?? Guid.Empty;
+
+        _history.Insert(message, conn.TopicId, serverId);
+
+        new NtfyMessageReceived(message, conn.TopicId).PublishAsync(Mode.WaitForNone);
     }
 
     // Resume the connections regardless of notification-pause state — sockets
