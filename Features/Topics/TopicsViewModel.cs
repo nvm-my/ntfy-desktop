@@ -38,15 +38,26 @@ public sealed partial class TopicsViewModel : ObservableObject
             Topics.Add(t);
     }
 
-    public async Task AddOrUpdateAsync(TopicSettings edited, TopicSettings? newTopicSettings)
+    public async Task AddOrUpdateAsync(TopicSettings edited, TopicSettings? original)
     {
-        if (newTopicSettings is not null)
+        if (original is not null)
         {
-            var idx = _settings.Topics.IndexOf(newTopicSettings);
+            // Editing: keep the original's stable identity (Id, server, display name).
+            // The editor dialog only edits name/pause/priority/active-hours for now;
+            // the server picker + display-name field arrive with the multi-server UI.
+            edited.Id = original.Id;
+            edited.ServerId = original.ServerId;
+            edited.DisplayName = original.DisplayName;
+
+            var idx = _settings.Topics.IndexOf(original);
             if (idx >= 0) _settings.Topics[idx] = edited;
         }
         else
         {
+            // New topic: assign to the default server (the UI to pick a server lands
+            // in the multi-server PR).
+            if (edited.ServerId == Guid.Empty)
+                edited.ServerId = _settings.DefaultServerId;
             _settings.Topics.Add(edited);
         }
 

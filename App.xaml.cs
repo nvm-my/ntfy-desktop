@@ -148,27 +148,25 @@ public partial class App : Application
 
     private void DispatchActivation(string url)
     {
-        if (!TryParseShowActivation(url, out var topic)) return;
+        if (!TryParseShowActivation(url, out var topicId)) return;
 
         ShowMainWindow();
 
         var window = _host!.Services.GetRequiredService<MainWindow>();
-        window.NavigateToTopic(topic);
+        window.NavigateToTopic(topicId);
     }
 
-    // ntfy-desktop://show?topic=<topic>&msg=<id>
-    // msg is intentionally ignored for now — we open the topic feed; scroll-to-message
-    // is a future enhancement.
-    private static bool TryParseShowActivation(string url, out string topic)
+    // ntfy-desktop://show?topic=<TopicId>
+    private static bool TryParseShowActivation(string url, out Guid topicId)
     {
-        topic = string.Empty;
+        topicId = Guid.Empty;
 
         if (string.IsNullOrWhiteSpace(url)) return false;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
         if (!string.Equals(uri.Scheme, ProtocolRegistration.SCHEME, StringComparison.OrdinalIgnoreCase)) return false;
         if (!string.Equals(uri.Host, "show", StringComparison.OrdinalIgnoreCase)) return false;
 
-        // Minimal query parsing — no System.Web dependency. Format: ?topic=foo&msg=bar
+        // Minimal query parsing — no System.Web dependency. Format: ?topic=<guid>
         var q = uri.Query;
         if (string.IsNullOrEmpty(q)) return false;
         if (q.StartsWith('?')) q = q[1..];
@@ -180,10 +178,10 @@ public partial class App : Application
             var key = Uri.UnescapeDataString(pair[..eq]);
             var value = Uri.UnescapeDataString(pair[(eq + 1)..]);
             if (string.Equals(key, "topic", StringComparison.OrdinalIgnoreCase))
-                topic = value;
+                Guid.TryParse(value, out topicId);
         }
 
-        return !string.IsNullOrEmpty(topic);
+        return topicId != Guid.Empty;
     }
 
     private static string? ExtractActivationUrl(string[] args) =>

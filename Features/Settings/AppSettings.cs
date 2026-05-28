@@ -1,6 +1,4 @@
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NtfyDesktop.Domain;
@@ -17,63 +15,96 @@ public class AppSettings
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
     };
-    
+
     public static AppSettings Load()
     {
-        if (!File.Exists(_path)) return new();
+        AppSettings settings;
+        if (!File.Exists(_path))
+        {
+            settings = new();
+        }
+        else
+        {
+            try
+            {
+                var json = File.ReadAllText(_path);
+                settings = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+            }
+            catch
+            {
+                settings = new();
+            }
+        }
 
-        try
-        {
-            var json = File.ReadAllText(_path);
-            return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
-        }
-        catch
-        {
-            return new();
-        }
+        // Bring legacy single-server config up to the multi-server model. Persists
+        // if anything changed so the synthesized server/ids stick.
+        if (settings.Migrate())
+            settings.Save();
+
+        return settings;
     }
-    
+
     public void Save()
     {
         Directory.CreateDirectory(App.DataPath);
         var json = JsonSerializer.Serialize(this, _jsonOptions);
         File.WriteAllText(_path, json);
     }
-    
-    public string GetAccessToken()
-    {
-        if (string.IsNullOrEmpty(EncryptedAccessToken))
-            return string.Empty;
 
-        try
+    /// <summary>
+    /// Migrates a pre-multi-server config: synthesizes a "Default" server from the
+    /// legacy ServerUrl/token, assigns every topic to it, and gives each topic a
+    /// stable Id. Also runs on a fresh install so there's always at least one server.
+    /// Returns true if anything was changed (caller persists).
+    /// </summary>
+    public bool Migrate()
+    {
+        var changed = false;
+
+        if (Servers.Count == 0)
         {
-            var encrypted = Convert.FromBase64String(EncryptedAccessToken);
-            var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
-            return Encoding.UTF8.GetString(decrypted);
+            var server = new ServerConfig
+            {
+                Name = "Default",
+                Url = string.IsNullOrWhiteSpace(ServerUrl) ? "https://ntfy.sh" : ServerUrl,
+                EncryptedAccessToken = EncryptedAccessToken,
+            };
+            Servers.Add(server);
+            DefaultServerId = server.Id;
+            changed = true;
         }
-        catch
+
+        if (DefaultServerId == Guid.Empty || GetServer(DefaultServerId) is null)
         {
-            return string.Empty;
+            DefaultServerId = Servers[0].Id;
+            changed = true;
         }
+
+        foreach (var topic in Topics)
+        {
+            if (topic.Id == Guid.Empty)        { topic.Id = Guid.NewGuid(); changed = true; }
+            if (topic.ServerId == Guid.Empty)  { topic.ServerId = DefaultServerId; changed = true; }
+        }
+
+        return changed;
     }
 
-    public void SetAccessToken(string token)
-    {
-        if (string.IsNullOrEmpty(token))
-        {
-            EncryptedAccessToken = string.Empty;
-            return;
-        }
+    public ServerConfig? GetServer(Guid id) => Servers.FirstOrDefault(s => s.Id == id);
 
-        var data = Encoding.UTF8.GetBytes(token);
-        var encrypted = ProtectedData.Protect(data, null, DataProtectionScope.CurrentUser);
-        EncryptedAccessToken = Convert.ToBase64String(encrypted);
-    }
+    public ServerConfig DefaultServer => GetServer(DefaultServerId) ?? Servers[0];
+
+    public TopicSettings? GetTopicById(Guid id) => Topics.FirstOrDefault(t => t.Id == id);
 
     #region props
 
+    public List<ServerConfig> Servers { get; set; } = new();
+    public Guid DefaultServerId { get; set; }
+
+    // Legacy single-server fields — retained only as a migration source. Not used
+    // at runtime once Servers is populated. Kept so older settings.json deserialize.
     public string ServerUrl { get; set; } = "https://ntfy.sh";
     public string EncryptedAccessToken { get; set; } = string.Empty;
+
     public Priority GlobalMinPriority { get; set; } = Priority.Min;
     public int HistoryRetentionDays { get; set; } = 30;
     // "Start with Windows" is stored exclusively in the HKCU\...\Run registry key
@@ -85,12 +116,4 @@ public class AppSettings
     public List<TopicSettings> Topics { get; set; } = new();
 
     #endregion
-
-    
-    public TopicSettings? GetTopicSettings(string topicName)
-        => Topics.FirstOrDefault(x => x.Name == topicName);
-    
-    
-    
-    
 }

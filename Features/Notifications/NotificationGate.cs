@@ -3,13 +3,12 @@ using NtfyDesktop.Features.Settings;
 namespace NtfyDesktop.Features.Notifications;
 
 // Owns the notification-pause read/write surface. Writes through to
-// AppSettings.IsPaused and TopicSettings.IsPaused — same persistence format as
-// before, just a single owner instead of scattered settings reads/writes.
+// AppSettings.IsPaused (global) and TopicSettings.IsPaused (per topic).
 //
-// The pause state was previously bolted onto ConnectionManager, which conflated
-// "is the socket healthy" with "are we delivering toasts". They're independent:
-// sockets stay open while paused, messages still arrive and are persisted, only
-// the toast is suppressed (see ShowToastNotification).
+// Per-topic pause is keyed by TopicId (topic names are no longer unique across
+// servers). The pause axis is independent of the socket: sockets stay open while
+// paused, messages still arrive and are persisted, only the toast is suppressed
+// (see ShowToastNotification).
 public sealed class NotificationGate
 {
     private readonly AppSettings _settings;
@@ -24,23 +23,23 @@ public sealed class NotificationGate
 
     public bool IsGloballyPaused => _settings.IsPaused;
 
-    public bool IsTopicPaused(string topicName)
+    public bool IsTopicPaused(Guid topicId)
     {
         if (_settings.IsPaused) return true;
-        return _settings.GetTopicSettings(topicName)?.IsPaused ?? false;
+        return _settings.GetTopicById(topicId)?.IsPaused ?? false;
     }
 
     // True only when the per-topic flag is set (ignores global pause).
     // Used by UI surfaces that need to distinguish "topic-specific pause" from
     // "everything paused".
-    public bool IsTopicSpecificallyPaused(string topicName) =>
-        _settings.GetTopicSettings(topicName)?.IsPaused ?? false;
+    public bool IsTopicSpecificallyPaused(Guid topicId) =>
+        _settings.GetTopicById(topicId)?.IsPaused ?? false;
 
     // Fires when the global pause flag flips.
     public event EventHandler? GlobalStatusChanged;
 
-    // Fires when a single topic's pause flag flips. Arg is the topic name.
-    public event EventHandler<string>? TopicPauseChanged;
+    // Fires when a single topic's pause flag flips. Arg is the topic id.
+    public event EventHandler<Guid>? TopicPauseChanged;
 
     public void PauseAll()
     {
@@ -58,21 +57,21 @@ public sealed class NotificationGate
         GlobalStatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void PauseTopic(string topicName)
+    public void PauseTopic(Guid topicId)
     {
-        var t = _settings.GetTopicSettings(topicName);
+        var t = _settings.GetTopicById(topicId);
         if (t is null || t.IsPaused) return;
         t.IsPaused = true;
         _settings.Save();
-        TopicPauseChanged?.Invoke(this, topicName);
+        TopicPauseChanged?.Invoke(this, topicId);
     }
 
-    public void ResumeTopic(string topicName)
+    public void ResumeTopic(Guid topicId)
     {
-        var t = _settings.GetTopicSettings(topicName);
+        var t = _settings.GetTopicById(topicId);
         if (t is null || !t.IsPaused) return;
         t.IsPaused = false;
         _settings.Save();
-        TopicPauseChanged?.Invoke(this, topicName);
+        TopicPauseChanged?.Invoke(this, topicId);
     }
 }

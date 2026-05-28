@@ -26,6 +26,8 @@ public class HistoryRepository
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id  TEXT    NOT NULL UNIQUE,
                 topic       TEXT    NOT NULL,
+                topic_id    TEXT,
+                server_id   TEXT,
                 timestamp   INTEGER NOT NULL,
                 priority    INTEGER NOT NULL DEFAULT 3,
                 title       TEXT,
@@ -37,20 +39,68 @@ public class HistoryRepository
             CREATE INDEX IF NOT EXISTS idx_topic     ON messages(topic);
             """;
         cmd.ExecuteNonQuery();
+
+        // Migrate older databases that predate the topic_id / server_id columns.
+        // Must run before any index that references those columns, otherwise an
+        // existing table (kept as-is by CREATE TABLE IF NOT EXISTS) lacks them.
+        EnsureColumn(conn, "topic_id");
+        EnsureColumn(conn, "server_id");
+
+        using var idx = conn.CreateCommand();
+        idx.CommandText = "CREATE INDEX IF NOT EXISTS idx_topic_id ON messages(topic_id)";
+        idx.ExecuteNonQuery();
     }
 
-    public void Insert(NtfyMessage message)
+    private static void EnsureColumn(SqliteConnection conn, string column)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name = @c";
+        check.Parameters.AddWithValue("@c", column);
+        var exists = Convert.ToInt64(check.ExecuteScalar()) > 0;
+        if (exists) return;
+
+        using var alter = conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE messages ADD COLUMN {column} TEXT";
+        alter.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// One-time migration: stamps topic_id onto pre-existing rows by matching the
+    /// stored topic name to a (name → id) map. Safe because topic names were unique
+    /// before multi-server existed. Only touches rows that don't already have an id.
+    /// </summary>
+    public void BackfillTopicIds(IEnumerable<(string Name, Guid Id, Guid ServerId)> topics)
+    {
+        using var conn = Open();
+        foreach (var (name, id, serverId) in topics)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                UPDATE messages
+                   SET topic_id = @id, server_id = @sid
+                 WHERE topic = @name AND (topic_id IS NULL OR topic_id = '')
+                """;
+            cmd.Parameters.AddWithValue("@id", id.ToString());
+            cmd.Parameters.AddWithValue("@sid", serverId.ToString());
+            cmd.Parameters.AddWithValue("@name", name);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public void Insert(NtfyMessage message, Guid topicId, Guid serverId)
     {
         using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO messages
-                (message_id, topic, timestamp, priority, title, body, tags, click)
+                (message_id, topic, topic_id, server_id, timestamp, priority, title, body, tags, click)
             VALUES
-                (@mid, @topic, @ts, @priority, @title, @body, @tags, @click)
+                (@mid, @topic, @topicId, @serverId, @ts, @priority, @title, @body, @tags, @click)
             """;
         cmd.Parameters.AddWithValue("@mid", message.Id);
         cmd.Parameters.AddWithValue("@topic", message.Topic);
+        cmd.Parameters.AddWithValue("@topicId", topicId.ToString());
+        cmd.Parameters.AddWithValue("@serverId", serverId.ToString());
         cmd.Parameters.AddWithValue("@ts", message.Time);
         cmd.Parameters.AddWithValue("@priority", (int)message.Priority);
         cmd.Parameters.AddWithValue("@title", (object?)message.Title ?? DBNull.Value);
@@ -60,14 +110,14 @@ public class HistoryRepository
         cmd.Parameters.AddWithValue("@click", (object?)message.Click ?? DBNull.Value);
         cmd.ExecuteNonQuery();
 
-        var histMsg = ToHistoryMessage(message);
+        var histMsg = ToHistoryMessage(message, topicId);
         MessageInserted?.Invoke(this, histMsg);
 
         // Retention sweeps run on a timer in HistoryRetentionService, not per-Insert.
     }
 
     public List<HistoryMessage> Query(
-        string? topic = null,
+        Guid? topicId = null,
         Priority? minPriority = null,
         DateTimeOffset? from = null,
         DateTimeOffset? to = null,
@@ -77,7 +127,7 @@ public class HistoryRepository
         using var cmd = conn.CreateCommand();
 
         var conditions = new List<string>();
-        if (topic != null) { conditions.Add("topic = @topic"); cmd.Parameters.AddWithValue("@topic", topic); }
+        if (topicId != null) { conditions.Add("topic_id = @topicId"); cmd.Parameters.AddWithValue("@topicId", topicId.Value.ToString()); }
         if (minPriority != null) { conditions.Add("priority >= @minP"); cmd.Parameters.AddWithValue("@minP", (int)minPriority.Value); }
         if (from != null) { conditions.Add("timestamp >= @from"); cmd.Parameters.AddWithValue("@from", from.Value.ToUnixTimeSeconds()); }
         if (to != null) { conditions.Add("timestamp <= @to"); cmd.Parameters.AddWithValue("@to", to.Value.ToUnixTimeSeconds()); }
@@ -101,12 +151,12 @@ public class HistoryRepository
         cmd.ExecuteNonQuery();
     }
 
-    public void DeleteByTopic(string topic)
+    public void DeleteByTopicId(Guid topicId)
     {
         using var conn = Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM messages WHERE topic = @topic";
-        cmd.Parameters.AddWithValue("@topic", topic);
+        cmd.CommandText = "DELETE FROM messages WHERE topic_id = @id";
+        cmd.Parameters.AddWithValue("@id", topicId.ToString());
         cmd.ExecuteNonQuery();
     }
 
@@ -129,18 +179,6 @@ public class HistoryRepository
         cmd.ExecuteNonQuery();
     }
 
-    public List<string> GetDistinctTopics()
-    {
-        using var conn = Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT DISTINCT topic FROM messages ORDER BY topic";
-        var topics = new List<string>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-            topics.Add(reader.GetString(0));
-        return topics;
-    }
-
     private SqliteConnection Open()
     {
         var conn = new SqliteConnection($"Data Source={_dbPath}");
@@ -158,6 +196,7 @@ public class HistoryRepository
             RowId = r.GetInt64(Col("id")),
             MessageId = r.GetString(Col("message_id")),
             Topic = r.GetString(Col("topic")),
+            TopicId = Guid.TryParse(NullStr("topic_id"), out var tid) ? tid : Guid.Empty,
             Timestamp = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(Col("timestamp"))),
             Priority = (Priority)r.GetInt32(Col("priority")),
             Title = NullStr("title"),
@@ -167,10 +206,11 @@ public class HistoryRepository
         };
     }
 
-    private static HistoryMessage ToHistoryMessage(NtfyMessage m) => new()
+    private static HistoryMessage ToHistoryMessage(NtfyMessage m, Guid topicId) => new()
     {
         MessageId = m.Id,
         Topic = m.Topic,
+        TopicId = topicId,
         Timestamp = m.Timestamp,
         Priority = m.Priority,
         Title = m.Title,

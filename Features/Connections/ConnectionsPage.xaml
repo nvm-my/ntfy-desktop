@@ -82,7 +82,7 @@
                                     <StackPanel Grid.Column="1">
                                         <StackPanel Orientation="Horizontal">
                                             <ui:TextBlock FontTypography="BodyStrong"
-                                                          Text="{Binding TopicName}"
+                                                          Text="{Binding DisplayName}"
                                                           VerticalAlignment="Center" />
                                             <ui:TextBlock Margin="10,0,0,0"
                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
@@ -102,7 +102,7 @@
                                                Content="Reconnect"
                                                VerticalAlignment="Center"
                                                Command="{Binding DataContext.ReconnectCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                               CommandParameter="{Binding TopicName}" />
+                                               CommandParameter="{Binding TopicId}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
