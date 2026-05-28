@@ -1,6 +1,14 @@
-[![Build](https://github.com/simoneferrari/ntfy-desktop/actions/workflows/build.yml/badge.svg)](https://github.com/simoneferrari/ntfy-desktop/actions/workflows/build.yml)
+<p align="center">
+  <img src="assets/icon-256.png" width="128" alt="ntfy Desktop" />
+</p>
 
-# ntfy Desktop
+<h1 align="center">ntfy Desktop</h1>
+
+<p align="center">
+  <a href="https://github.com/simoneferrari/ntfy-desktop/actions/workflows/build.yml">
+    <img src="https://github.com/simoneferrari/ntfy-desktop/actions/workflows/build.yml/badge.svg" alt="Build" />
+  </a>
+</p>
 
 A Windows desktop client for [ntfy.sh](https://ntfy.sh) — subscribe to topics, receive Windows toast notifications, and browse your message history from the system tray.
 
