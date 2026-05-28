@@ -12,7 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <!-- Package metadata -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>ntfy Desktop</Product>
     <Description>Windows desktop client for ntfy.sh — toast notifications, system tray, in-app feed.</Description>
     <Authors>Simone Ferrari</Authors>
