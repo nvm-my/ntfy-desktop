@@ -33,7 +33,8 @@ A Windows desktop client for [ntfy](https://ntfy.sh) — subscribe to topics acr
 - Subscribe to topics across multiple ntfy servers (for example a self-hosted instance alongside `ntfy.sh`)
 - Per-topic server selection, with a dedicated server-management UI and a configurable default
 - Add, edit, enable/disable, and remove topics directly from the navigation rail
-- Optional per-topic display names, with configurable server labelling in the sidebar (grouped, inline, or off)
+- Organise topics into collapsible groups in the rail, with manual ordering and drag-and-drop
+- Optional per-topic display names, with an optional server label under each topic (when more than one server is configured)
 
 **Notifications**
 - Windows toast notifications for every incoming message, with priority-based sound and urgency
@@ -73,7 +74,7 @@ Planned, in rough order. Open an issue if you'd like to discuss priorities or pr
 - [x] Per-topic display names (friendly labels)
 
 **0.4 — Topic groups & tray badge**
-- [ ] Topic groups/folders (collapsible groups in the nav rail)
+- [x] Topic groups/folders (collapsible groups in the nav rail, with manual ordering and drag-and-drop)
 - [ ] Tray badge count (unread total on the tray icon)
 
 **0.5 — Richer messages**

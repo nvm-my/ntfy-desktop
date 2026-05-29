@@ -166,6 +166,43 @@ public sealed partial class TopicsViewModel : ObservableObject
         _settings.RaiseDisplayChanged();
     }
 
+    // ===== Drag-and-drop placement (absolute positions) =====
+
+    // Drop `dragged` immediately before/after `anchor`, joining anchor's section.
+    public void DropTopicRelativeTo(TopicSettings dragged, TopicSettings anchor, bool before)
+    {
+        if (ReferenceEquals(dragged, anchor)) return;
+
+        dragged.GroupName = anchor.GroupName;
+        _settings.Topics.Remove(dragged);
+
+        var i = _settings.Topics.IndexOf(anchor);
+        if (i < 0) i = _settings.Topics.Count - 1;
+        _settings.Topics.Insert(before ? i : i + 1, dragged);
+
+        SyncGroupOrder();
+        _settings.Save();
+        ReloadFromSettings();
+        _settings.RaiseDisplayChanged();
+    }
+
+    // Reorder one group folder before/after another.
+    public void DropGroupRelativeTo(string dragged, string anchor, bool before)
+    {
+        if (string.Equals(dragged, anchor, StringComparison.Ordinal)) return;
+        if (!_settings.GroupOrder.Contains(dragged) || !_settings.GroupOrder.Contains(anchor)) return;
+
+        _settings.GroupOrder.Remove(dragged);
+        var i = _settings.GroupOrder.IndexOf(anchor);
+        _settings.GroupOrder.Insert(before ? i : i + 1, dragged);
+
+        _settings.Save();
+        _settings.RaiseDisplayChanged();
+    }
+
+    public TopicSettings? FirstTopicInGroup(string group) =>
+        _settings.Topics.FirstOrDefault(t => Section(t) == group);
+
     // Existing group names in their display order: GroupOrder first, then any
     // not-yet-tracked groups alphabetically.
     public IReadOnlyList<string> OrderedGroups()
