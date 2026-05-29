@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NtfyDesktop.Features.Connections;
@@ -42,6 +43,13 @@ public partial class MainWindow : FluentWindow
     private readonly Dictionary<Guid, RailItem> _railItems = new();
     private readonly Dictionary<string, IconBadge> _groupBadges = new();
     private IconBadge? _allTopicsBadge;
+
+    // Rail drag-and-drop state. Payload is a Guid (topic id) or a string (group name).
+    private Point _dragStartPoint;
+    private object? _dragCandidate;   // armed on mouse-down, promoted past the threshold
+    private object? _dragging;        // payload of the in-flight drag
+    private Adorner? _dropAdorner;    // current drop indicator (line or highlight)
+    private (UIElement Target, string Mode, bool Flag)? _dropKey; // dedupe re-renders
 
     private sealed record RailItem(NavigationViewItem Item, Ellipse Pip, SymbolIcon PauseGlyph, IconBadge Badge);
 
@@ -114,6 +122,12 @@ public partial class MainWindow : FluentWindow
         Loaded -= OnFirstLoaded;
 
         _allTopicsBadge = new IconBadge(AllTopicsIcon);
+
+        // "All topics" is a drop target for ungrouping: drag a topic onto it to pull
+        // it out of its group. (It's a drop target only — never a drag source.)
+        AllTopicsItem.AllowDrop = true;
+        AllTopicsItem.DragOver += (s, e) => OnRailDragOver((NavigationViewItem)s, e);
+        AllTopicsItem.Drop += (s, e) => OnRailDrop((NavigationViewItem)s, e);
 
         RebuildTopicItems();
         // Navigating to FeedPage marks AllTopicsItem (TargetPageType=FeedPage) as active.
@@ -206,8 +220,12 @@ public partial class MainWindow : FluentWindow
             Content = groupName,
             Icon = icon,
             // No TargetPageType — clicking expands/collapses, never navigates.
+            // Tag = group name identifies it as a folder drop target.
+            Tag = groupName,
             ContextMenu = BuildGroupContextMenu(groupName),
         };
+
+        WireDragDrop(folder, groupName);
 
         // Restore persisted collapse state before wiring the listener, so this
         // programmatic set doesn't trigger a redundant save.
@@ -338,6 +356,8 @@ public partial class MainWindow : FluentWindow
         // ContextMenuOpening fires before the menu is shown, so populating here sizes
         // it correctly on the first open.
         item.ContextMenuOpening += (_, _) => PopulateTopicContextMenu(contextMenu, topic.Id);
+
+        WireDragDrop(item, topic.Id);
 
         return new RailItem(item, pip, pauseGlyph, new IconBadge(icon));
     }
@@ -884,6 +904,199 @@ public partial class MainWindow : FluentWindow
             var y = -5;
             _badge.Arrange(new Rect(new Point(x, y), size));
             return finalSize;
+        }
+    }
+
+    // ===== Rail drag-and-drop =====
+    //
+    // Drag a topic to reorder it within its section or drop it onto a folder to move
+    // it into that group; drag a folder to reorder it among the other folders. Each
+    // rail item is both a drag source and a drop target; the payload is the topic id
+    // (Guid) or the group name (string), which also matches how items carry their Tag.
+    // The moves themselves live in TopicsViewModel.
+
+    private void WireDragDrop(NavigationViewItem item, object payload)
+    {
+        item.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            _dragStartPoint = e.GetPosition(null);
+            _dragCandidate = payload;
+        };
+        item.PreviewMouseMove += (s, e) => OnRailMouseMove((NavigationViewItem)s, e);
+        item.AllowDrop = true;
+        item.DragOver += (s, e) => OnRailDragOver((NavigationViewItem)s, e);
+        item.Drop += (s, e) => OnRailDrop((NavigationViewItem)s, e);
+    }
+
+    private void OnRailMouseMove(NavigationViewItem item, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _dragCandidate is null) return;
+
+        var p = e.GetPosition(null);
+        if (Math.Abs(p.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(p.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        var payload = _dragCandidate;
+        _dragCandidate = null;
+        _dragging = payload;
+        try { DragDrop.DoDragDrop(item, new DataObject("ntfyRail", payload), DragDropEffects.Move); }
+        finally { _dragging = null; ClearDrop(); }
+    }
+
+    private void OnRailDragOver(NavigationViewItem target, DragEventArgs e)
+    {
+        e.Handled = true;
+        e.Effects = DragDropEffects.None;
+        if (_dragging is null) return;
+
+        var targetIsTopic = target.Tag is Guid;
+        var targetIsFolder = target.Tag is string g && g.Length > 0;
+        var targetIsAllTopics = ReferenceEquals(target, AllTopicsItem);
+
+        if (_dragging is Guid)
+        {
+            if (targetIsTopic)
+            {
+                // Reorder relative to a topic: insertion line by vertical midpoint.
+                var before = e.GetPosition(target).Y < target.ActualHeight / 2;
+                ShowLine(target, before);
+                e.Effects = DragDropEffects.Move;
+            }
+            else if (targetIsFolder || targetIsAllTopics)
+            {
+                // Into a group (folder) or out to ungrouped (All topics): highlight the
+                // whole target — there's no before/after, the topic just joins it.
+                ShowHighlight(target);
+                e.Effects = DragDropEffects.Move;
+            }
+            else ClearDrop();
+        }
+        else if (_dragging is string draggedGroup)
+        {
+            // A folder reorders only among folders. Decide before/after by the groups'
+            // relative order, not pixels: an expanded folder's height includes its
+            // children, so a midpoint test would always read as "before".
+            if (targetIsFolder)
+            {
+                ShowLine(target, GroupGoesBefore(draggedGroup, (string)target.Tag));
+                e.Effects = DragDropEffects.Move;
+            }
+            else ClearDrop();
+        }
+    }
+
+    private void OnRailDrop(NavigationViewItem target, DragEventArgs e)
+    {
+        e.Handled = true;
+        var payload = _dragging;
+        ClearDrop();
+        if (payload is null) return;
+
+        if (payload is Guid draggedId)
+        {
+            var dragged = _settings.GetTopicById(draggedId);
+            if (dragged is null) return;
+
+            if (target.Tag is Guid anchorId)
+            {
+                var anchor = _settings.GetTopicById(anchorId);
+                var before = e.GetPosition(target).Y < target.ActualHeight / 2;
+                if (anchor is not null) _topicsVm.DropTopicRelativeTo(dragged, anchor, before);
+            }
+            else if (ReferenceEquals(target, AllTopicsItem))
+            {
+                _topicsVm.MoveTopicToGroup(dragged, null); // ungroup
+            }
+            else if (target.Tag is string group && group.Length > 0)
+            {
+                // Drop onto a folder → into that group, at the top.
+                var first = _topicsVm.FirstTopicInGroup(group);
+                if (first is not null) _topicsVm.DropTopicRelativeTo(dragged, first, before: true);
+                else                    _topicsVm.MoveTopicToGroup(dragged, group);
+            }
+        }
+        else if (payload is string draggedGroup && target.Tag is string anchorGroup && anchorGroup.Length > 0)
+        {
+            _topicsVm.DropGroupRelativeTo(draggedGroup, anchorGroup, GroupGoesBefore(draggedGroup, anchorGroup));
+        }
+    }
+
+    // When reordering folders, a group dragged from below its anchor lands before it;
+    // from above, after it. Direction is implied by the current order, so dropping
+    // anywhere on a folder works regardless of where the cursor sits on it.
+    private bool GroupGoesBefore(string dragged, string anchor) =>
+        _settings.GroupOrder.IndexOf(dragged) > _settings.GroupOrder.IndexOf(anchor);
+
+    private void ShowLine(UIElement target, bool atTop) =>
+        SetDrop(target, "line", atTop, () => new InsertionAdorner(target, atTop));
+
+    private void ShowHighlight(UIElement target) =>
+        SetDrop(target, "highlight", false, () => new HighlightAdorner(target));
+
+    private void SetDrop(UIElement target, string mode, bool flag, Func<Adorner> make)
+    {
+        var key = (target, mode, flag);
+        if (_dropAdorner is not null && _dropKey == key) return;
+        ClearDrop();
+
+        var layer = AdornerLayer.GetAdornerLayer(target);
+        if (layer is null) return;
+        _dropAdorner = make();
+        _dropKey = key;
+        layer.Add(_dropAdorner);
+    }
+
+    private void ClearDrop()
+    {
+        if (_dropAdorner is null) return;
+        AdornerLayer.GetAdornerLayer(_dropAdorner.AdornedElement)?.Remove(_dropAdorner);
+        _dropAdorner = null;
+        _dropKey = null;
+    }
+
+    // A horizontal insertion line at the top or bottom edge of the hovered item.
+    private sealed class InsertionAdorner : Adorner
+    {
+        private static readonly Pen _pen = CreatePen();
+        private readonly bool _atTop;
+
+        public InsertionAdorner(UIElement adornedElement, bool atTop) : base(adornedElement)
+        {
+            _atTop = atTop;
+            IsHitTestVisible = false;
+        }
+
+        private static Pen CreatePen()
+        {
+            var pen = new Pen(BadgeBrush, 2);
+            pen.Freeze();
+            return pen;
+        }
+
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            var y = _atTop ? 1 : AdornedElement.RenderSize.Height - 1;
+            drawingContext.DrawLine(_pen, new Point(0, y), new Point(AdornedElement.RenderSize.Width, y));
+        }
+    }
+
+    // A rounded highlight over the whole item — "drop into this group" / "ungroup".
+    private sealed class HighlightAdorner : Adorner
+    {
+        private static readonly Brush _fill = FrozenFill();
+        private static readonly Pen _pen = CreatePen();
+
+        public HighlightAdorner(UIElement adornedElement) : base(adornedElement) => IsHitTestVisible = false;
+
+        private static Brush FrozenFill() { var b = new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0x67, 0xC0)); b.Freeze(); return b; }
+        private static Pen CreatePen() { var p = new Pen(BadgeBrush, 1.5); p.Freeze(); return p; }
+
+        protected override void OnRender(DrawingContext drawingContext)
+        {
+            var w = Math.Max(0, AdornedElement.RenderSize.Width - 2);
+            var h = Math.Max(0, AdornedElement.RenderSize.Height - 2);
+            drawingContext.DrawRoundedRectangle(_fill, _pen, new Rect(new Point(1, 1), new Size(w, h)), 4, 4);
         }
     }
 }
