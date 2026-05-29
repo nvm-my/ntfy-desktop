@@ -72,11 +72,15 @@ Planned, in rough order. Open an issue if you'd like to discuss priorities or pr
 - [x] Server management UI
 - [x] Per-topic display names (friendly labels)
 
-**0.4 — Richer messages**
+**0.4 — Topic groups & tray badge**
+- [ ] Topic groups/folders (collapsible groups in the nav rail)
+- [ ] Tray badge count (unread total on the tray icon)
+
+**0.5 — Richer messages**
 - [ ] Action buttons (`view` / `http` / `broadcast`)
 - [ ] Image attachments inline in the feed
 
-**0.5 — Polish**
+**0.6 — Polish**
 - [ ] Username/password authentication (in addition to access tokens)
 - [ ] Markdown subset rendering in message bodies (bold, italic, links, code)
 - [ ] "New version available" banner (checks GitHub Releases)
@@ -84,12 +88,10 @@ Planned, in rough order. Open an issue if you'd like to discuss priorities or pr
 
 **Later**
 - [x] Unread/read state with per-topic and All-topics badges in the rail
-- [ ] Tray badge count
 - [ ] Multiplex topics per server onto a single WebSocket (like the official web client; fewer sockets, avoids per-visitor connection/subscription limits)
 - [ ] Windows Focus Assist integration
 - [ ] Test-publish dialog
 - [ ] Settings import/export
-- [ ] Topic groups/folders
 - [ ] `ntfy://` URL scheme handler
 - [ ] Localisation
 
