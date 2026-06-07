@@ -12,21 +12,22 @@ release-note material.
 
 ### Bugs
 
-#### Unread badge lingers after collapsing a group folder
-
-When a group folder is collapsed, an unread-count badge from one of its (now-hidden) topics
-stays visible in the rail. WPF keeps a collapsed folder's child rows loaded (only their
-container is hidden), so the child icon never raises `Unloaded` and its `BadgeAdorner` lingers
-in the adorner layer at the icon's stale position. Pre-existing; surfaced while testing the
-toast-click fix.
-Status: fixed on `fix/collapsed-folder-unread-badge` — `BadgeAdorner` binds its `Visibility`
-to the adorned icon's `IsVisible`, so it hides whenever an ancestor collapses. Awaiting merge.
+_None currently._
 
 ### Small items
 
 _None currently._
 
 ## Resolved
+
+#### Unread badge lingered after collapsing a group folder
+
+A collapsed group's hidden child topic still showed its unread badge in the rail. WPF keeps a
+collapsed folder's child rows loaded (only their container is hidden), so the child icon never
+raised `Unloaded` and its `BadgeAdorner` lingered in the adorner layer at the icon's stale
+position. **Fix:** `BadgeAdorner` binds its `Visibility` to the adorned icon's `IsVisible`, so
+it hides whenever any ancestor collapses and reappears on expand. Branch
+`fix/collapsed-folder-unread-badge`.
 
 #### Toast click didn't highlight the topic in the rail
 
