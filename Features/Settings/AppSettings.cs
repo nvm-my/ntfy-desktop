@@ -218,5 +218,22 @@ public class AppSettings
     public TimeOnly ActiveHoursEnd { get; set; } = new TimeOnly(18, 0);
     public List<TopicSettings> Topics { get; set; } = new();
 
+    /// <summary>Persisted main-window placement so the size/position/maximized state the
+    /// user leaves it in survives a restart. New installs default to maximized.</summary>
+    public WindowPlacement Window { get; set; } = new();
+
     #endregion
+}
+
+/// <summary>Main-window placement persisted across restarts. <see cref="Left"/>/<see cref="Top"/>/
+/// <see cref="Width"/>/<see cref="Height"/> are the *normal-state* (restored) bounds — null until the
+/// window has been shown once, in which case the XAML defaults apply. <see cref="Maximized"/> is the
+/// state to open in; it defaults to true so a fresh install fills the screen.</summary>
+public class WindowPlacement
+{
+    public bool Maximized { get; set; } = true;
+    public double? Left { get; set; }
+    public double? Top { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
 }

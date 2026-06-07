@@ -32,6 +32,8 @@ whether the app is already open or closed when the toast is clicked.
 
 When the window is opened from the tray icon it should be maximized, or at least occupy
 most of the screen, rather than its current size.
+Status: fixed on `feature/window-maximized-on-open` (default maximized on fresh install +
+full size/position/maximized-state persistence across restarts). Awaiting merge.
 
 ## Resolved
 
