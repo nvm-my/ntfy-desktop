@@ -106,7 +106,7 @@ public partial class MainWindow
 
         // ===== Rail event subscriptions (bus; marshaled to the UI thread) =====
         // Structural — incremental single-item updates.
-        eventBus.Subscribe<TopicAdded>(this, e => InsertTopicItem(e.Topic), ThreadOption.UIThread);
+        eventBus.Subscribe<TopicAdded>(this, _ => OnTopicAdded(), ThreadOption.UIThread);
         eventBus.Subscribe<TopicUpdated>(this, e => OnTopicUpdated(e.Topic), ThreadOption.UIThread);
         eventBus.Subscribe<TopicDeleted>(this, e => OnTopicDeleted(e.TopicId), ThreadOption.UIThread);
         eventBus.Subscribe<TopicMoved>(this, e => OnTopicMoved(e.TopicId), ThreadOption.UIThread);
@@ -159,6 +159,15 @@ public partial class MainWindow
         RootNavigation.Navigate(typeof(FeedPage));
         RefreshBadges();
     }
+
+    // Rebuild rather than incrementally insert the one new item. WPF-UI's NavigationView
+    // doesn't reliably register a dynamically-inserted item for selection — most visibly a
+    // topic dropped into a brand-new group folder — so the first click on it never raised
+    // SelectionChanged and the feed wouldn't switch to that topic (it took an app restart,
+    // i.e. a clean rail build, to start working). A rebuild reproduces that clean-build
+    // state, the same reason OnTopicMoved rebuilds. Adds are rare, user-initiated actions,
+    // so the extra work is imperceptible.
+    private void OnTopicAdded() => RebuildTopicItems();
 
     private void OnTopicUpdated(TopicSettings topic)
     {
