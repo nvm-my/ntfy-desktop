@@ -73,6 +73,14 @@ public partial class MainWindow
     // so we don't re-prompt or recurse.
     private bool _bypassDirtyGuard;
 
+    // The window state to return to when un-minimizing from the tray. Tracked so
+    // restoring a maximized-then-minimized window comes back maximized rather than
+    // collapsing to Normal. Seeded from persisted placement in the constructor.
+    private WindowState _restoreWindowState = WindowState.Maximized;
+
+    // Last non-minimized state, used by App.ShowMainWindow when re-showing from the tray.
+    public WindowState RestoreWindowState => _restoreWindowState;
+
     public MainWindow(
         MainWindowViewModel viewModel,
         AppSettings settings,
@@ -128,6 +136,20 @@ public partial class MainWindow
         // read (catches messages that arrived while minimized to the tray).
         Activated   += (_, _) => _unread.SetWindowActive(true);
         Deactivated += (_, _) => _unread.SetWindowActive(false);
+
+        // Remember the last non-minimized state so re-showing from the tray restores
+        // maximized-vs-normal rather than always dropping to Normal, and keep the
+        // persisted placement current as the user moves/resizes/maximizes the window.
+        // Capture is in-memory only; it's written to disk on hide and on exit.
+        StateChanged += (_, _) =>
+        {
+            if (WindowState != WindowState.Minimized) _restoreWindowState = WindowState;
+            CaptureWindowPlacement();
+        };
+        SizeChanged     += (_, _) => CaptureWindowPlacement();
+        LocationChanged += (_, _) => CaptureWindowPlacement();
+
+        ApplyPersistedPlacement();
 
         // Right-click "All topics" → Mark all read. Populated on open so it can disable
         // itself when there's nothing unread.
@@ -942,9 +964,63 @@ public partial class MainWindow
         _unread.SetActiveView(resolved is { } id ? ActiveView.Topic(id) : ActiveView.AllTopics);
     }
 
+    // Restore the size/position/maximized state the user last left the window in. Runs in
+    // the constructor (before the window is first shown from the tray) so there's no
+    // reposition flicker. Normal-state bounds are applied even when opening maximized, so
+    // a later un-maximize lands on the saved size rather than the XAML default. Saved
+    // bounds that no longer fall on any screen (e.g. a monitor was unplugged) are ignored.
+    private void ApplyPersistedPlacement()
+    {
+        var p = _settings.Window;
+
+        if (p is { Left: { } left, Top: { } top, Width: { } width, Height: { } height }
+            && IsOnScreen(left, top, width, height))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = left; Top = top; Width = width; Height = height;
+        }
+
+        _restoreWindowState = p.Maximized ? WindowState.Maximized : WindowState.Normal;
+        WindowState = _restoreWindowState;
+    }
+
+    // Snapshot the current placement into settings (in-memory only; persisted on hide/exit).
+    // The normal-state bounds come from RestoreBounds while maximized, so we store the size
+    // the window un-maximizes to — not the maximized rect.
+    private void CaptureWindowPlacement()
+    {
+        if (!IsLoaded) return; // bounds aren't meaningful before the first show
+
+        var p = _settings.Window;
+        p.Maximized = _restoreWindowState == WindowState.Maximized;
+
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+        if (bounds is { Width: > 0, Height: > 0 })
+        {
+            p.Left = bounds.Left; p.Top = bounds.Top;
+            p.Width = bounds.Width; p.Height = bounds.Height;
+        }
+    }
+
+    // True if a meaningful portion of the rect overlaps the virtual desktop, so a window
+    // restored to it has a grabbable title bar (guards against off-screen saved bounds).
+    private static bool IsOnScreen(double left, double top, double width, double height)
+    {
+        var virtualScreen = new Rect(
+            SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        var rect = new Rect(left, top, width, height);
+        rect.Intersect(virtualScreen);
+        return rect is { Width: >= 100, Height: >= 50 };
+    }
+
     protected override void OnClosing(CancelEventArgs e)
     {
         e.Cancel = true;
+        CaptureWindowPlacement();
+        _settings.Save();
         Hide();
         base.OnClosing(e);
     }

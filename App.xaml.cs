@@ -11,6 +11,7 @@ using NtfyDesktop.Features.Feed;
 using NtfyDesktop.Features.History;
 using NtfyDesktop.Features.Notifications;
 using NtfyDesktop.Features.Notifications.Events;
+using NtfyDesktop.Features.Settings;
 using NtfyDesktop.Features.Shell;
 using NtfyDesktop.Features.Unread;
 using NtfyDesktop.Features.Unread.Events;
@@ -303,7 +304,7 @@ public partial class App : Application
             window.Show();
 
         if (window.WindowState == WindowState.Minimized)
-            window.WindowState = WindowState.Normal;
+            window.WindowState = window.RestoreWindowState;
 
         window.Activate();
         window.Topmost = true;
@@ -338,6 +339,14 @@ public partial class App : Application
     {
         _activationServer?.Dispose();
         _trayIcon?.Dispose();
+
+        // Flush the latest window placement (kept current in-memory as the window moves)
+        // so quitting from the tray with the window still open persists its size/state.
+        if (_host != null)
+        {
+            try { _host.Services.GetRequiredService<AppSettings>().Save(); }
+            catch { /* best-effort */ }
+        }
 
         if (_host != null)
         {
