@@ -12,20 +12,30 @@ release-note material.
 
 ### Bugs
 
-#### Toast click navigates to topic feed but rail selection isn't updated
+#### Unread badge lingers after collapsing a group folder
 
-Clicking a toast notification opens/shows the app and navigates to the topic's feed, but
-the rail doesn't mark that topic as selected — "All topics" stays selected instead. Happens
-whether the app is already open or closed when the toast is clicked.
-Status: fixed on `fix/toast-click-rail-selection` — `NavigateToTopic` navigates by the rail
-item's `Id` (not `typeof(FeedPage)`, which always resolved to "All topics"), and expands the
-topic's group folder first. Awaiting merge.
+When a group folder is collapsed, an unread-count badge from one of its (now-hidden) topics
+stays visible in the rail. WPF keeps a collapsed folder's child rows loaded (only their
+container is hidden), so the child icon never raises `Unloaded` and its `BadgeAdorner` lingers
+in the adorner layer at the icon's stale position. Pre-existing; surfaced while testing the
+toast-click fix.
 
 ### Small items
 
 _None currently._
 
 ## Resolved
+
+#### Toast click didn't highlight the topic in the rail
+
+Clicking a toast navigated the feed to the topic but the rail kept "All topics" selected
+instead of the topic. Cause: `NavigateToTopic` used `Navigate(typeof(FeedPage))`, and since
+every rail item shares `TargetPageType=FeedPage`, WPF-UI resolved that to the first match
+("All topics"). **Fix:** navigate by the rail item's `Id` (activates that exact item and
+raises `SelectionChanged`, which drives the feed/unread like a real click), and expand the
+topic's group folder first (WPF-UI nulls a child's parent link on unload, so `Activate` can't
+auto-expand a collapsed folder). Falls back to "All topics" if the topic was removed. Branch
+`fix/toast-click-rail-selection`.
 
 #### Phantom "messages while away" toast after deleting a message
 
