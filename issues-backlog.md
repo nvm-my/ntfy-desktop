@@ -12,17 +12,6 @@ release-note material.
 
 ### Bugs
 
-#### "Messages while away" notification shown for already-read messages after delete
-
-Repro: delete a message, then close and re-open the app — the "messages while away"
-notification appears even though the deleted message was already read. Catch-up should
-fetch only messages since the last-read timestamp, so a read-then-deleted message should
-not count. If the message is *not* deleted, the notification correctly does not appear,
-which points at the delete path mishandling the since-timestamp / read bookkeeping.
-Status: fixed on `fix/away-notification-after-delete` — `HistoryRepository.Insert` now drops
-the re-delivered boundary message by matching `topic_cursor.message_id` (survives the row
-delete that previously made the inclusive `since=` re-delivery look new). Awaiting merge.
-
 #### Toast click navigates to topic feed but rail selection isn't updated
 
 Clicking a toast notification opens/shows the app and navigates to the topic's feed, but
@@ -34,6 +23,17 @@ whether the app is already open or closed when the toast is clicked.
 _None currently._
 
 ## Resolved
+
+#### Phantom "messages while away" toast after deleting a message
+
+Deleting a message, closing, then reopening fired a "N messages while you were away" summary
+for the deleted (already-read) message; not deleting it showed nothing. Cause: ntfy's inclusive
+`since=<time>` re-delivers the cursor's own boundary message on every reconnect, normally
+absorbed by `INSERT OR IGNORE` — but once that message's row was deleted, the re-delivery
+looked new and was resurrected into the feed/unread and counted in the summary. **Fix:**
+`HistoryRepository.Insert` drops the re-sent boundary message by matching the stored
+`topic_cursor.message_id` (which survives the row delete). Same-second multi-delete where one is
+the cursor stays a known corner. Branch `fix/away-notification-after-delete`.
 
 #### Main window opened too small from the tray
 
