@@ -12,7 +12,26 @@ release-note material.
 
 ### Bugs
 
-_None currently._
+#### "Messages while away" notification shown for already-read messages after delete
+
+Repro: delete a message, then close and re-open the app — the "messages while away"
+notification appears even though the deleted message was already read. Catch-up should
+fetch only messages since the last-read timestamp, so a read-then-deleted message should
+not count. If the message is *not* deleted, the notification correctly does not appear,
+which points at the delete path mishandling the since-timestamp / read bookkeeping.
+
+#### Toast click navigates to topic feed but rail selection isn't updated
+
+Clicking a toast notification opens/shows the app and navigates to the topic's feed, but
+the rail doesn't mark that topic as selected — "All topics" stays selected instead. Happens
+whether the app is already open or closed when the toast is clicked.
+
+### Small items
+
+#### Main window should open maximized (or near-full-screen) from the tray icon
+
+When the window is opened from the tray icon it should be maximized, or at least occupy
+most of the screen, rather than its current size.
 
 ## Resolved
 
