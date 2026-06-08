@@ -34,12 +34,6 @@ Internal notes behind unshipped [README.md](README.md) roadmap items: caveats an
 - Cleanest path is a standard `Authorization: Basic <base64(user:pass)>` header — over https only, same cleartext refusal as the token. (ntfy also accepts Basic credentials as a base64 bearer-style value, but Basic is simpler.)
 - UI: extend the server editor (`ServerEditorViewModel`/dialog) with an auth-method choice; store the password DPAPI-encrypted like the token.
 
-### Markdown rendering (subset, 0.7)
-
-- Scope: **bold, italic, inline code, fenced code, links, line breaks.** Skip tables, headings, lists, blockquotes — the long tail of CommonMark.
-- Don't pull in a full CommonMark library; a small hand-written tokenizer is enough and keeps the dependency footprint tiny.
-- Render only when `Content-Type: text/markdown` (ntfy sets this when the `Markdown: yes` header is used). Otherwise plain text — don't auto-detect markdown in plain bodies, that breaks things like `_underscored_filenames_`.
-
 ### Socket multiplexing (per server)
 
 - Today `ConnectionManager` opens **one WebSocket per topic**; the official web client multiplexes all of a server's topics onto one socket (`wss://server/topic1,topic2/ws`).
@@ -56,6 +50,18 @@ Internal notes behind unshipped [README.md](README.md) roadmap items: caveats an
 - Register `HKCU\Software\Classes\ntfy` per-user; the handler should open the app and trigger Add Topic with the URL prefilled.
 
 ## Resolved
+
+#### Markdown subset rendering in message bodies (0.7)
+
+The feed renders a small Markdown subset — **bold, italic, inline code, fenced code blocks,
+links, and line breaks** — when ntfy flags a message `text/markdown` (the `content_type` field);
+a hand-written recursive-descent parser, no CommonMark dependency. The long tail (headings,
+lists, tables, blockquotes) passes through as plain text, and markdown is **never auto-detected**
+in a non-flagged body (it would mangle e.g. `_underscored_filenames_`). Windows toasts can't
+render markup, so their body is flattened to clean plain text via the same parser instead of
+showing raw `**syntax**`. `content_type` rides the pipeline via an additive `EnsureColumn`
+migration. Design lives in [ARCHITECTURE.md](ARCHITECTURE.md) (Feed → Markdown bodies). Branch
+`feature/markdown-rendering`.
 
 #### Unread badge lingered after collapsing a group folder
 
