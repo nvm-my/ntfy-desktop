@@ -18,6 +18,13 @@ public partial class HistoryMessage : ObservableObject
     public string? Title { get; set; }
     public string? Body { get; set; }
 
+    /// <summary>ntfy message content type; "text/markdown" when published with Markdown enabled.</summary>
+    public string? ContentType { get; set; }
+
+    /// <summary>Render the body as a subset of Markdown (only when ntfy flagged it as such).</summary>
+    public bool IsMarkdown =>
+        string.Equals(ContentType, "text/markdown", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Comma-joined tag list as stored in SQLite.</summary>
     public string? Tags { get; set; }
 

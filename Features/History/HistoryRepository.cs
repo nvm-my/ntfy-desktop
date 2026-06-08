@@ -65,6 +65,10 @@ public class HistoryRepository
         // approach as attachment — trivial migration, forward-compatible.
         EnsureColumn(conn, "actions");
 
+        // ntfy message content type ("text/markdown" when the message was published with
+        // Markdown enabled). Drives subset markdown rendering in the feed; null = plain text.
+        EnsureColumn(conn, "content_type");
+
         // Unread tracking (0 = unread, 1 = read). When the column is added to an
         // existing database, mark all pre-existing rows read so the user doesn't
         // get flooded with unread badges for messages they've already seen — only
@@ -183,9 +187,9 @@ public class HistoryRepository
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO messages
-                (message_id, topic, topic_id, server_id, timestamp, priority, title, body, tags, click, attachment, actions)
+                (message_id, topic, topic_id, server_id, timestamp, priority, title, body, tags, click, attachment, actions, content_type)
             VALUES
-                (@mid, @topic, @topicId, @serverId, @ts, @priority, @title, @body, @tags, @click, @attachment, @actions)
+                (@mid, @topic, @topicId, @serverId, @ts, @priority, @title, @body, @tags, @click, @attachment, @actions, @contentType)
             """;
         cmd.Parameters.AddWithValue("@mid", message.Id);
         cmd.Parameters.AddWithValue("@topic", message.Topic);
@@ -200,6 +204,7 @@ public class HistoryRepository
         cmd.Parameters.AddWithValue("@click", (object?)message.Click ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@attachment", (object?)SerializeAttachment(message.Attachment) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@actions", (object?)SerializeActions(message.Actions) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@contentType", (object?)message.ContentType ?? DBNull.Value);
         var inserted = cmd.ExecuteNonQuery() > 0; // INSERT OR IGNORE → 0 when message_id already stored
 
         // Advance the topic's catch-up cursor (forward only). Runs even when the row was
@@ -566,6 +571,7 @@ public class HistoryRepository
             Click = NullStr("click"),
             Attachment = DeserializeAttachment(NullStr("attachment")),
             Actions = DeserializeActions(NullStr("actions")),
+            ContentType = NullStr("content_type"),
         };
     }
 
@@ -582,6 +588,7 @@ public class HistoryRepository
         Click = m.Click,
         Attachment = m.Attachment,
         Actions = m.Actions,
+        ContentType = m.ContentType,
     };
 
     private static string? SerializeAttachment(NtfyAttachment? attachment) =>

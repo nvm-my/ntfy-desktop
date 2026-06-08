@@ -25,6 +25,11 @@ public sealed record NtfyMessage
     [JsonPropertyName("message")]
     public string? Message { get; init; }
 
+    // ntfy sets content_type to "text/markdown" when a message is published with the
+    // Markdown header (or Content-Type: text/markdown). Absent/anything else → plain text.
+    [JsonPropertyName("content_type")]
+    public string? ContentType { get; init; }
+
     [JsonPropertyName("tags")]
     public List<string>? Tags { get; init; }
 
@@ -41,4 +46,8 @@ public sealed record NtfyMessage
     public long? Expires { get; init; }
 
     public DateTimeOffset Timestamp => DateTimeOffset.FromUnixTimeSeconds(Time);
+
+    /// <summary>ntfy flagged this body as Markdown (content_type == "text/markdown").</summary>
+    public bool IsMarkdown =>
+        string.Equals(ContentType, "text/markdown", StringComparison.OrdinalIgnoreCase);
 }

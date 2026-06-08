@@ -49,7 +49,12 @@ public class ToastNotifier
             var emojis = EmojiTags.Format(message.Tags).Emojis;
             var title = string.IsNullOrEmpty(emojis) ? baseTitle : $"{emojis} {baseTitle}";
 
+            // Windows' toast template renders only plain text, so flatten a Markdown body to
+            // readable text (strip the **/_/`` markers, unwrap links) rather than showing the
+            // raw syntax. Non-markdown bodies pass through untouched.
             var body = message.Message ?? string.Empty;
+            if (message.IsMarkdown)
+                body = Feed.Markdown.MarkdownRenderer.ToPlainText(body);
 
             var xml = BuildToastXml(title, body, message.Topic, message.Priority, message.Click, topicId,
                 message.Id, message.Actions);

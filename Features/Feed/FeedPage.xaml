@@ -5,6 +5,7 @@
       xmlns:sys="clr-namespace:System;assembly=mscorlib"
       xmlns:converters="clr-namespace:NtfyDesktop.Features.Shell.Converters"
       xmlns:domain="clr-namespace:NtfyDesktop.Domain"
+      xmlns:md="clr-namespace:NtfyDesktop.Features.Feed.Markdown"
       Background="Transparent"
       ScrollViewer.CanContentScroll="False"
       Title="Feed">
@@ -238,9 +239,14 @@
                                     <ui:TextBlock FontTypography="BodyStrong"
                                                   Text="{Binding DisplayTitle}"
                                                   TextTrimming="CharacterEllipsis" />
-                                    <ui:TextBlock Text="{Binding Body}"
-                                                  TextWrapping="Wrap"
-                                                  Margin="0,2,0,0" />
+                                    <!-- Message body. Plain text by default; rendered as a
+                                         subset of Markdown (bold/italic/code/links/line
+                                         breaks) only when ntfy flagged the message
+                                         text/markdown. The StackPanel is filled in code-behind
+                                         via the MarkdownBody attached properties. -->
+                                    <StackPanel Margin="0,2,0,0"
+                                                md:MarkdownBody.IsMarkdown="{Binding IsMarkdown}"
+                                                md:MarkdownBody.Text="{Binding Body}" />
 
                                     <!-- Inline image attachment. A Button (not a Border+MouseBinding)
                                          so the click is consumed and doesn't also fire the row's
