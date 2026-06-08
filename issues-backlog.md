@@ -35,6 +35,20 @@ Internal notes behind unshipped [README.md](README.md) roadmap items: caveats an
 - Fix: group enabled topics by `ServerId`, open one `TopicConnection` per server subscribing to the comma-joined topic list, and route received messages back to the right topic by name. Touches `ConnectionManager` (keying) + `TopicConnection` (URL build, message→topic resolution).
 - Non-trivial: the per-topic pip/pause/reconnect UI must still work per topic over a shared socket. Also interacts with catch-up — `since` becomes per-topic-within-one-socket (ntfy's comma-topic URL supports it, but it complicates the cursor).
 
+### Selectable message body text (feed)
+
+- Message bodies in the feed should be **selectable so they can be copied**.
+- Caveat: the feed renders a **Markdown subset** (bold/italic/inline code/code blocks/links/line breaks — see the resolved markdown note below), so the body is a tree of inline runs and block elements, not one flat `TextBlock`. Selection has to span those rendered runs and code blocks, and copy should yield **clean text** (the rendered/plain text, not raw `**syntax**`). The existing markdown→plain-text flattening (already used for toasts) is the reference for what "clean" copy looks like.
+
+### Update experience polish
+
+Refinements on the automatic-updates feature shipped in 0.7. Four related sub-items:
+
+- **More frequent background check.** Today the background check runs roughly **once a day**; drop the interval to **every 30–60 min**. One-liner in the update scheduler, but confirm it doesn't hammer GitHub Releases (respect rate limits / keep the on-startup check as-is).
+- **Manual "check for updates" in the title bar.** Add a manual-check entry point in the **main-window title bar, next to "Pause notifications"**, so a check is reachable without going into Settings → Updates.
+- **Tray check needs immediate feedback.** Checking for updates **from the tray** currently does nothing visible until a version is found (banner on the main window or a Windows toast) — if you're up to date, it looks like nothing happened. Show instant feedback when the check *starts* ("Checking for updates…") and an explicit **"You're up to date"** result, not just the success-case banner.
+- **Download-progress redesign.** The current download-progress design isn't liked; prefer a **shorter and taller** treatment. Exact design **TBD at implementation**.
+
 ### Windows Focus Assist integration
 
 - `Windows.UI.Notifications.Management.UserNotificationListener` — needs a user permission grant.

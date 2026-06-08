@@ -96,12 +96,16 @@ Planned, in rough order. Open an issue if you'd like to discuss priorities or pr
 - [x] Update download progress — a progress bar in the update banner while an update downloads, so large updates don't look stalled
 - [x] Encrypt `history.db` at rest
 
-**Later**
-- [x] Unread/read state with per-topic and All-topics badges in the rail
+**0.8 — Reliability, feed & update polish**
 - [ ] Multiplex topics per server onto a single WebSocket (like the official web client; fewer sockets, avoids per-visitor connection/subscription limits)
+- [ ] Selectable message text in the feed (select and copy a message body)
+- [ ] Settings import/export
+- [ ] Update-experience polish — a manual "check for updates" in the main-window title bar, immediate feedback when checking from the tray, a more frequent background check, and a refined download-progress design
+- [x] Unread/read state with per-topic and All-topics badges in the rail *(shipped early)*
+
+**0.9 — Niche & nice-to-haves**
 - [ ] Windows Focus Assist integration
 - [ ] Test-publish dialog
-- [ ] Settings import/export
 - [ ] `ntfy://` URL scheme handler
 - [ ] Localisation
 
