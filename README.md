@@ -32,42 +32,42 @@ A Windows desktop client for [ntfy](https://ntfy.sh) — subscribe to topics acr
 ## Features
 
 **Servers and topics**
-- Subscribe to topics across multiple ntfy servers (for example a self-hosted instance alongside `ntfy.sh`)
-- Per-topic server selection, with a dedicated server-management UI and a configurable default
-- Add, edit, enable/disable, and remove topics directly from the navigation rail
-- Organise topics into collapsible groups in the rail, with manual ordering and drag-and-drop
-- Optional per-topic display names, with an optional server label under each topic (when more than one server is configured)
+- Subscribe to topics across multiple ntfy servers
+- Per-topic server selection
+- Topic management from the navigation rail
+- Collapsible topic groups and group/topic drag-and-drop ordering
+- Optional per-topic display names and server labels
 
 **Notifications**
-- Windows toast notifications for every incoming message, with priority-based sound and urgency
-- Click a toast to open its link, or to bring the app to the relevant topic when no link is set
-- ntfy tags rendered as emoji, matching the ntfy web app
-- Global and per-topic notification pause — connections stay live; only toasts are suppressed
-- Active hours — suppress toasts outside a configurable time window
+- Windows toast notifications with priority-based sound and urgency
+- Click a toast to open its link, or jump to the topic in-app
+- ntfy tags rendered as emoji
+- Global and per-topic notification pause (connections stay live)
+- Active hours — suppress toasts outside a set time window (global / per-topic override)
 
 **Feed and history**
-- In-app message feed with per-topic filtering, full-text search, and priority threshold
-- Markdown rendering in message bodies — a subset (bold, italic, inline and fenced code, links, line breaks) when a message is flagged as Markdown
-- Attachments — images shown inline in the feed; any attachment can be opened with its default app, cached locally with a configurable size budget
-- Action buttons on messages, both in the feed and on toast notifications — open a link (`view`), copy a value (`copy`), or fire an `http` request after a confirmation prompt
-- Catch up on missed messages — on every (re)connect, fetch messages that arrived while the app was closed or offline and backfill the feed and history, summarised in a single "N messages while you were away" notification rather than a toast per message
-- Unread-message badges on the rail (per topic and across all topics); opening a feed marks it read
-- Message history persisted in SQLite, with configurable retention
+- In-app feed with per-topic filtering, search, and priority threshold
+- Markdown subset rendering in message bodies
+- Attachments and inline images
+- Message action buttons (`view` / `copy` / `http`), in the feed and on toasts
+- Catch-up notification for missed messages after downtime
+- Unread badges on the rail, per topic and across all
+- Message history with configurable retention
 
 **Security**
-- Per-server authentication with an access token or username/password (HTTP Basic), encrypted at rest with Windows DPAPI
-- Message history database encrypted at rest (SQLite3 Multiple Ciphers; key wrapped with Windows DPAPI)
-- Credentials are never sent over plain `ws://` / `http://`
+- Per-server auth (access token or username/password), encrypted at rest with Windows DPAPI
+- Message history database encrypted at rest (SQLite3 Multiple Ciphers)
+- Credentials never sent over plain `ws://` / `http://`
 
 **Updates**
-- Automatic updates — self-updating installer and portable build (Velopack), with an in-app banner and a manual check
+- Automatic updates
 - Stable and dev channels, switchable in-app
 
 **Application**
-- System tray with colour-coded connection status (green / amber / red); unread count shown in the tooltip
-- Fluent design (WPF-UI) that follows the system light/dark theme
-- Single-instance; runs in the background after the window is closed
-- Optional custom data directory via `--data-path` (useful for portable use or multiple profiles)
+- System tray with colour-coded connection status and unread count
+- Fluent UI (WPF-UI) that follows the system light/dark theme
+- Single-instance; runs in the background when closed
+- Custom data directory via `--data-path`
 
 ## Requirements
 
