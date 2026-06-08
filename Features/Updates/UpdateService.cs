@@ -172,12 +172,15 @@ public sealed class UpdateService(EventBus bus, ToastNotifier toasts, AppSetting
 
     // Downloads the pending update and restarts into it. The process exits inside
     // ApplyUpdatesAndRestart, so this only returns if there's nothing pending or the
-    // download throws (left to the caller to surface / retry).
-    public async Task DownloadAndApplyAsync()
+    // download throws (left to the caller to surface / retry). `progress` (if given) is
+    // called with 0–100 as the download proceeds, so the caller can show a progress bar
+    // for large updates; Velopack invokes it from a background thread, so the caller is
+    // responsible for marshalling to the UI thread.
+    public async Task DownloadAndApplyAsync(Action<int>? progress = null)
     {
         if (!IsSupported || _pending is null) return;
 
-        await _manager.DownloadUpdatesAsync(_pending);
+        await _manager.DownloadUpdatesAsync(_pending, progress);
         _manager.ApplyUpdatesAndRestart(_pending.TargetFullRelease);
     }
 

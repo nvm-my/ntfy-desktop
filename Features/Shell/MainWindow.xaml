@@ -97,7 +97,14 @@
                     <ui:TextBlock FontTypography="BodyStrong" Text="{Binding UpdateBannerText}" />
                     <ui:TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                   FontTypography="Caption"
-                                  Text="The update downloads in the background, then the app restarts to finish." />
+                                  Text="{Binding UpdateBannerSubtext}" />
+                    <!-- Determinate download progress, only while applying. Shows the
+                         user a large update is actually moving rather than hung. -->
+                    <ProgressBar Minimum="0" Maximum="100"
+                                 Value="{Binding DownloadProgress}"
+                                 Height="3"
+                                 Margin="0,6,0,0"
+                                 Visibility="{Binding IsApplyingUpdate, Converter={StaticResource BoolToVis}}" />
                 </StackPanel>
                 <ui:Button Grid.Column="2"
                            Appearance="Primary"
