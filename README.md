@@ -47,14 +47,21 @@ A Windows desktop client for [ntfy](https://ntfy.sh) — subscribe to topics acr
 
 **Feed and history**
 - In-app message feed with per-topic filtering, full-text search, and priority threshold
+- Markdown rendering in message bodies — a subset (bold, italic, inline and fenced code, links, line breaks) when a message is flagged as Markdown
+- Attachments — images shown inline in the feed; any attachment can be opened with its default app, cached locally with a configurable size budget
 - Action buttons on messages, both in the feed and on toast notifications — open a link (`view`), copy a value (`copy`), or fire an `http` request after a confirmation prompt
+- Catch up on missed messages — on every (re)connect, fetch messages that arrived while the app was closed or offline and backfill the feed and history, summarised in a single "N messages while you were away" notification rather than a toast per message
 - Unread-message badges on the rail (per topic and across all topics); opening a feed marks it read
 - Message history persisted in SQLite, with configurable retention
 
 **Security**
-- Per-server access tokens encrypted at rest with Windows DPAPI
+- Per-server authentication with an access token or username/password (HTTP Basic), encrypted at rest with Windows DPAPI
 - Message history database encrypted at rest (SQLite3 Multiple Ciphers; key wrapped with Windows DPAPI)
-- Bearer tokens are never sent over plain `ws://` / `http://`
+- Credentials are never sent over plain `ws://` / `http://`
+
+**Updates**
+- Automatic updates — self-updating installer and portable build (Velopack), with an in-app banner and a manual check
+- Stable and dev channels, switchable in-app
 
 **Application**
 - System tray with colour-coded connection status (green / amber / red); unread count shown in the tooltip
@@ -91,7 +98,7 @@ If you prefer to verify the download first, every release's notes include a [Vir
 
 1. Launch the app — it appears in the system tray.
 2. Double-click the tray icon (or click **Show**) to open the window.
-3. Open **Settings → Servers**. A default `https://ntfy.sh` server is preconfigured; add or edit servers (and access tokens) as needed.
+3. Open **Settings → Servers**. A default `https://ntfy.sh` server is preconfigured; add or edit servers, authenticating with an access token or username/password as needed.
 4. Click **Add topic** in the navigation rail, choose its server, and optionally give it a display name.
 5. Messages arrive as Windows toasts and accumulate in the in-app feed.
 
