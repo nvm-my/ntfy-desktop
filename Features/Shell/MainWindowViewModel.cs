@@ -51,10 +51,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApplyUpdate))]
     [NotifyPropertyChangedFor(nameof(UpdateButtonLabel))]
+    [NotifyPropertyChangedFor(nameof(UpdateBannerSubtext))]
     private bool _isApplyingUpdate;
+
+    // Download progress (0–100) while applying, so a large update doesn't look stuck.
+    // Fed by Velopack's progress callback (marshalled to the UI thread in ApplyUpdate).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateBannerSubtext))]
+    private int _downloadProgress;
 
     public string UpdateBannerText =>
         UpdateVersion.Length > 0 ? $"Version {UpdateVersion} is available" : "An update is available";
+
+    // While downloading, show live progress; otherwise the standing explanation.
+    public string UpdateBannerSubtext => IsApplyingUpdate
+        ? $"Downloading… {DownloadProgress}%"
+        : "The update downloads in the background, then the app restarts to finish.";
 
     public string UpdateButtonLabel => IsApplyingUpdate ? "Updating…" : "Restart & update";
 
@@ -104,9 +116,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (IsApplyingUpdate) return;
         IsApplyingUpdate = true;
+        DownloadProgress = 0;
+
+        // Progress<int> captures this (UI) thread's SynchronizationContext, so Velopack's
+        // background progress callback marshals back here before touching the bound property.
+        var progress = new Progress<int>(p => DownloadProgress = p);
         try
         {
-            await _updates.DownloadAndApplyAsync();
+            await _updates.DownloadAndApplyAsync(((IProgress<int>)progress).Report);
         }
         catch
         {
