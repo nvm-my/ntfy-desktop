@@ -13,21 +13,34 @@ namespace NtfyDesktop.Features.Rules;
 ///
 /// Fails open: a rule that throws is skipped, never silently dropping a message.
 /// </summary>
-public sealed class RuleEngine(
-    AppSettings settings,
-    Func<IReadOnlyList<RulePack>> packsProvider,
-    IIncidentStore incidents)
+public sealed class RuleEngine
 {
+    private readonly AppSettings _settings;
+    private readonly Func<IReadOnlyList<RulePack>> _packsProvider;
+    private readonly IIncidentStore _incidents;
+
+    /// <summary>Production constructor: reads packs from the loaded PackStore.</summary>
+    public RuleEngine(AppSettings settings, PackStore packs, IIncidentStore incidents)
+        : this(settings, () => packs.Packs, incidents) { }
+
+    /// <summary>Test constructor: packs supplied directly.</summary>
+    public RuleEngine(AppSettings settings, Func<IReadOnlyList<RulePack>> packsProvider, IIncidentStore incidents)
+    {
+        _settings = settings;
+        _packsProvider = packsProvider;
+        _incidents = incidents;
+    }
+
     public RuleVerdict Evaluate(NtfyMessage message)
     {
-        if (!settings.RulesEnabled) return RuleVerdict.PassThrough;
+        if (!_settings.RulesEnabled) return RuleVerdict.PassThrough;
 
         var suppress = false;
         var tags = new List<string>();
         IncidentOpen? openIncident = null;
         (string RuleId, string Key)? closeIncident = null;
 
-        foreach (var pack in packsProvider())
+        foreach (var pack in _packsProvider())
         {
             foreach (var rule in pack.MatchRules)
             {
@@ -55,7 +68,7 @@ public sealed class RuleEngine(
                     else if (rule.Close.Matches(message))
                     {
                         var key = rule.Key.Extract(message);
-                        if (key is not null && incidents.FindOpen(rule.Id, key) is not null)
+                        if (key is not null && _incidents.FindOpen(rule.Id, key) is not null)
                         {
                             ApplyActions(rule.OnClose, ref suppress, tags);
                             closeIncident = (rule.Id, key);
@@ -99,8 +112,8 @@ public sealed class RuleEngine(
     public void ApplyIncidentSideEffects(RuleVerdict verdict)
     {
         if (verdict.OpenIncident is { } open)
-            incidents.Open(open.RuleId, open.Key, open.MessageId, open.OpenedAt);
+            _incidents.Open(open.RuleId, open.Key, open.MessageId, open.OpenedAt);
         if (verdict.CloseIncident is { } close)
-            incidents.Resolve(close.RuleId, close.Key);
+            _incidents.Resolve(close.RuleId, close.Key);
     }
 }
