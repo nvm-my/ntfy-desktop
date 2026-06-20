@@ -252,6 +252,11 @@ public class AppSettings
     // "Start with Windows" is stored exclusively in the HKCU\...\Run registry key
     // (see StartupManager); it has no representation in this file.
     public bool IsPaused { get; set; } = false;
+
+    /// <summary>Master switch for the notification rule engine. When false, the engine
+    /// passes every message through unchanged.</summary>
+    public bool RulesEnabled { get; set; } = true;
+
     public bool ActiveHoursEnabled { get; set; } = false;
     public TimeOnly ActiveHoursStart { get; set; } = new TimeOnly(9, 0);
     public TimeOnly ActiveHoursEnd { get; set; } = new TimeOnly(18, 0);
