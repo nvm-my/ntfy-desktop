@@ -36,6 +36,7 @@ public sealed partial class FeedViewModel : ObservableObject
 
     [ObservableProperty] private string _searchText = string.Empty;
     [ObservableProperty] private Priority _minPriority = Priority.Min;
+    [ObservableProperty] private bool _showSuppressed;
     [ObservableProperty] private bool _isEmpty = true;
     [ObservableProperty] private bool _isLoading;
 
@@ -121,6 +122,7 @@ public sealed partial class FeedViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value) => _ = ReloadAsync();
     partial void OnMinPriorityChanged(Priority value) => _ = ReloadAsync();
+    partial void OnShowSuppressedChanged(bool value) => _ = ReloadAsync();
 
     private async Task ReloadAsync()
     {
@@ -129,12 +131,14 @@ public sealed partial class FeedViewModel : ObservableObject
         var topicId = CurrentTopicId;
         var minP = MinPriority;
         var search = SearchText;
+        var includeSuppressed = ShowSuppressed;
 
         var allTopics = topicId is null;
 
         var loaded = await Task.Run(() =>
         {
-            var raw = _history.Query(topicId: topicId, minPriority: minP, limit: MAX_DISPLAYED);
+            var raw = _history.Query(topicId: topicId, minPriority: minP, limit: MAX_DISPLAYED,
+                includeSuppressed: includeSuppressed);
             var list = string.IsNullOrWhiteSpace(search)
                 ? raw
                 : raw.Where(m => Matches(m, search)).ToList();
@@ -155,6 +159,7 @@ public sealed partial class FeedViewModel : ObservableObject
     {
         if (CurrentTopicId is { } id && m.TopicId != id) return;
         if (m.Priority < MinPriority) return;
+        if (m.Suppressed && !ShowSuppressed) return;
         if (!string.IsNullOrWhiteSpace(SearchText) && !Matches(m, SearchText)) return;
 
         Enrich(m, allTopics: CurrentTopicId is null);
