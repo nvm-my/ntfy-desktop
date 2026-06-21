@@ -18,6 +18,12 @@ public static class RulesFeature
                 Path.Combine(App.DataPath, "rules")));
 
             services.AddSingleton<RuleEngine>();
+
+            services.AddSingleton<ExpectationStore>(sp => new ExpectationStore(
+                Path.Combine(App.DataPath, "rules.db"),
+                sp.GetRequiredService<AppSettings>().GetOrCreateHistoryKey()));
+
+            services.AddHostedService<ExpectationMonitor>();
         }
     }
 }
