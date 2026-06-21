@@ -15,9 +15,14 @@ public static class PackSummarizer
                 : $"Suppress messages where {Describe(r.When)} (no toast, hidden from feed).");
 
         foreach (var r in pack.CorrelateRules)
-            lines.Add($"Pair: open when {Describe(r.Open)}, close when {Describe(r.Close)}, " +
+        {
+            var warn = SameMatcher(r.Open, r.Close)
+                ? "⚠ Open and close match the same messages — this can never pair. "
+                : string.Empty;
+            lines.Add($"{warn}Pair: open when {Describe(r.Open)}, close when {Describe(r.Close)}, " +
                       $"matched by the key from the {r.Key.From.ToString().ToLowerInvariant()}; " +
                       "both toast, then fold out of the feed.");
+        }
 
         foreach (var r in pack.ExpectRules)
             lines.Add($"Alert ({r.OnAbsence.Title}) if no message where {Describe(r.When)} " +
@@ -30,6 +35,12 @@ public static class PackSummarizer
     private static bool IsEmpty(Matcher m) =>
         m.Topic is null && m.MinPriority is null && m.TitleRegex is null &&
         m.BodyRegex is null && m.Tag is null;
+
+    // Field-wise comparison (avoids relying on record equality, since Matcher caches
+    // compiled regexes in mutable fields).
+    private static bool SameMatcher(Matcher a, Matcher b) =>
+        a.Topic == b.Topic && a.MinPriority == b.MinPriority && a.TitleRegex == b.TitleRegex &&
+        a.BodyRegex == b.BodyRegex && a.Tag == b.Tag;
 
     private static string Describe(Matcher m)
     {

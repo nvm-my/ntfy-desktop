@@ -28,8 +28,12 @@ public static class DraftPrompt
                      Silences routine noise (no toast, hidden from the feed).
         - correlate: { "type":"correlate", "open": <matcher>, "close": <matcher>,
                        "key": { "from":"title"|"body", "regex":"...(?<key>...)..." } }
-                     Pairs a problem with its resolution. BOTH messages must contain the SAME
-                     key value; if there is no shared identifier, do NOT emit a correlate rule.
+                     Pairs a problem with its resolution. The open and close matchers must
+                     describe DIFFERENT states (e.g. PROBLEM vs RESOLVED, "started" vs "ended")
+                     — never make them identical. The key must be a STABLE shared identifier
+                     present in both messages (an event id, host, or ticket number), NOT a
+                     per-message value like a duration or timestamp. If there is no such shared
+                     identifier, do NOT emit a correlate rule.
         - expect:    { "type":"expect", "when": <matcher>, "every":"26h", "grace":"1h",
                        "onAbsence": { "priority":"urgent", "title":"...", "message":"..." },
                        "onRecovery": { "priority":"default", "title":"..." } }

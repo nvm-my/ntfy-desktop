@@ -22,4 +22,22 @@ public class PackSummarizerTests
         Assert.Contains(lines, l => l.Contains("Pair") || l.Contains("Correlate"));
         Assert.Contains(lines, l => l.Contains("Alert") && l.Contains("26"));
     }
+
+    [Fact]
+    public void Summarize_FlagsEmptyMatcherSuppress()
+    {
+        var pack = new RulePack("P",
+            [new MatchRule(new Matcher(), [new RuleAction(RuleActionKind.SuppressToast)])], [], []);
+        Assert.Contains(PackSummarizer.Summarize(pack), l => l.Contains("EVERY message"));
+    }
+
+    [Fact]
+    public void Summarize_FlagsIdenticalOpenClose()
+    {
+        var same = new Matcher { TitleRegex = "^Database backup succeeded" };
+        var pack = new RulePack("P", [],
+            [new CorrelateRule("P#0", same, same with { },
+                new KeySelector { From = KeyField.Body, Regex = "(?<key>\\d+)" })], []);
+        Assert.Contains(PackSummarizer.Summarize(pack), l => l.Contains("never pair"));
+    }
 }
