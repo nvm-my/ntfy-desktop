@@ -19,7 +19,7 @@ public class RuleEngineCorrelateTests
     private static (RuleEngine engine, FakeIncidentStore store) Engine(CorrelateRule rule)
     {
         var store = new FakeIncidentStore();
-        var pack = new RulePack("zabbix", [], [rule]);
+        var pack = new RulePack("zabbix", [], [rule], []);
         var engine = new RuleEngine(new AppSettings { RulesEnabled = true }, () => [pack], store);
         return (engine, store);
     }

@@ -19,4 +19,5 @@ public sealed record CorrelateRule(
 public sealed record RulePack(
     string Name,
     IReadOnlyList<MatchRule> MatchRules,
-    IReadOnlyList<CorrelateRule> CorrelateRules);
+    IReadOnlyList<CorrelateRule> CorrelateRules,
+    IReadOnlyList<ExpectRule> ExpectRules);

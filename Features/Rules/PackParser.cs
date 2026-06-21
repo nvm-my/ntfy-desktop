@@ -20,6 +20,7 @@ public static class PackParser
 
         var matchRules = new List<MatchRule>();
         var correlateRules = new List<CorrelateRule>();
+        var expectRules = new List<ExpectRule>();
 
         if (root.TryGetProperty("rules", out var rules) && rules.ValueKind == JsonValueKind.Array)
         {
@@ -43,13 +44,44 @@ public static class PackParser
                             Close: ParseMatcher(rule, "close"),
                             Key: ParseKey(rule)));
                         break;
-                    // unknown type (e.g. "expect", phase 1b) → skip
+                    case "expect":
+                        if (TryParseExpect(rule, name, index) is { } expect)
+                            expectRules.Add(expect);
+                        break;
+                    // unknown type → skip
                 }
                 index++;
             }
         }
 
-        return new RulePack(name, matchRules, correlateRules);
+        return new RulePack(name, matchRules, correlateRules, expectRules);
+    }
+
+    private static ExpectRule? TryParseExpect(JsonElement rule, string packName, int index)
+    {
+        // every is required and must be a valid duration; onAbsence is required.
+        if (!Duration.TryParse(Str(rule, "every"), out var every)) return null;
+        var onAbsence = ParseAlert(rule, "onAbsence");
+        if (onAbsence is null) return null;
+
+        Duration.TryParse(Str(rule, "grace"), out var grace); // absent/invalid → Zero
+
+        return new ExpectRule(
+            Id: $"{packName}#{index}",
+            When: ParseMatcher(rule, "when"),
+            Every: every,
+            Grace: grace,
+            OnAbsence: onAbsence,
+            OnRecovery: ParseAlert(rule, "onRecovery"));
+    }
+
+    private static AlertSpec? ParseAlert(JsonElement rule, string property)
+    {
+        if (!rule.TryGetProperty(property, out var a) || a.ValueKind != JsonValueKind.Object)
+            return null;
+        var title = Str(a, "title");
+        if (string.IsNullOrWhiteSpace(title)) return null;
+        return new AlertSpec(ParsePriority(Str(a, "priority")) ?? Priority.High, title, Str(a, "message"));
     }
 
     private static Matcher ParseMatcher(JsonElement rule, string property)

@@ -17,7 +17,7 @@ public class RuleEngineMatchTests
     }
 
     private static RulePack Pack(params MatchRule[] match) =>
-        new("test", match, []);
+        new("test", match, [], []);
 
     [Fact]
     public void NoRules_PassesThrough()
