@@ -12,12 +12,12 @@ public sealed record DraftResult(
 public sealed class PackDraftService(IChatClient client)
 {
     public async Task<DraftResult> DraftAsync(
-        IReadOnlyList<string> samples, string? intent, CancellationToken ct)
+        IReadOnlyList<string> samples, string? intent, string? model, CancellationToken ct)
     {
         string raw;
         try
         {
-            raw = await client.CompleteAsync(DraftPrompt.BuildMessages(samples, intent), ct);
+            raw = await client.CompleteAsync(DraftPrompt.BuildMessages(samples, intent), model, ct);
         }
         catch (Exception ex)
         {
