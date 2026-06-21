@@ -132,12 +132,30 @@ Three rule types:
   matching message next arrives.
 - **`PackStore`**. Loads and validates packs at startup, exposes them to the
   engine, reloads on change. A master on/off toggle lives in settings.
-- **`PackDraftService`** (AI authoring). Takes pasted sample messages, calls the
-  configured **OpenAI-compatible endpoint** (base URL + model name + API key),
-  and returns a **draft pack** for the user to review, edit, and save. On-demand,
-  off the hot-path; nothing is sent unless the user invokes it. The API key is
-  DPAPI-wrapped at rest exactly like the existing access token (`TokenProtector`).
-  A thin `IPackDrafter` seam isolates the endpoint call for testing.
+- **`PackDraftService`** (AI authoring — Phase 1c, design confirmed). Orchestrates:
+  build request → call endpoint → parse → validate. The user never writes a raw
+  prompt: the app owns a **built-in system prompt** (pack schema + the three rule
+  types + the shared-key constraint + worked examples); the user supplies only
+  **sample messages** (picked from the topic's stored history, or pasted) and an
+  optional **one-line plain-English intent**. The model returns a draft pack;
+  `PackDraftService` strips any markdown fences, parses with `PackParser`, and the
+  dialog shows a **plain-English summary** (via `PackSummarizer`) plus the **editable
+  JSON** before save. Saving writes a pack file and calls `PackStore.Reload()` so it
+  takes effect without a restart. Calls the **OpenAI-compatible** endpoint via an
+  `IChatClient` seam (HTTP impl isolated; orchestration tested against a fake). The
+  API key is DPAPI-wrapped at rest like the access token (`TokenProtector`).
+  - **Provider presets:** a bundled-but-**overridable** `providers.json` (in
+    `App.DataPath`) lists known providers' base URLs + default model + auth — editable
+    without an app release (base URLs rarely change). The **model list is fetched live**
+    from the chosen provider's `GET /v1/models` (the provider maintains it, so models
+    never go stale), with graceful fallback to the preset's default model or a manual
+    field. A **"Custom"** option always allows a raw base URL + model.
+  - **Entry points:** a per-topic "Draft rules from this topic…" rail-menu item
+    (pre-loads that topic's recent messages) and a "Draft rules with AI…" button in
+    Settings.
+  - **Settings (Phase 1c):** AI endpoint config (provider/model/key) **and** the
+    `RulesEnabled` master toggle (pulled forward from Phase 2 at the maintainer's
+    request).
 
 ### Pipeline integration
 
@@ -232,12 +250,24 @@ so it is built test-first:
   it.
 - **Tool knowledge is data, not code:** declarative shareable packs, not loadable
   plugin assemblies (avoids untrusted-code execution on the desktop).
+- **AI authoring — app owns the prompt (Phase 1c).** The user never engineers a
+  prompt; they pick sample messages (from history) + an optional one-line intent, and
+  the app supplies the schema-aware system prompt. Samples come from stored history
+  (with a paste fallback); review shows a plain-English summary + editable JSON.
+- **Provider presets are data + live model fetch.** Base URLs live in an overridable
+  `providers.json` (no app release to change); models are fetched live from the
+  provider's `/v1/models` so the volatile list never needs maintaining. Two staleness
+  problems, solved separately.
+- **`RulesEnabled` toggle pulled into Phase 1c** (was Phase 2) so the master switch
+  ships with the engine's first user-facing surface.
 
 ## Build order
 
 1. **Phase 1a:** pack format + `RuleEngine` (match + correlate) + `IncidentStore`
    + pipeline integration + verdict persistence + feed/unread behaviour.
 2. **Phase 1b:** `ExpectationMonitor` (heartbeat / absence).
-3. **Phase 1c:** AI authoring (`PackDraftService` + endpoint settings).
+3. **Phase 1c:** AI authoring (`PackDraftService`, `IChatClient`, `PackSummarizer`,
+   provider presets + live models, the draft dialog) + endpoint settings + the
+   `RulesEnabled` toggle.
 4. **Phase 2:** in-app rule-builder UI over the same pack format.
 5. **Future:** stateful "open incidents" view; community pack library.
