@@ -50,9 +50,10 @@ public class ShowToastNotification(
     {
         var message = eventModel.Message;
 
-        // The rule engine suppressed this message: no toast, and don't count it in the
-        // catch-up summary either. It's still in history (hidden from the feed by default).
-        if (eventModel.Suppressed)
+        // The rule engine suppressed the toast for this message: no toast, and don't
+        // count it in the catch-up summary either. (Feed-hiding is a separate axis,
+        // applied via the stored suppressed flag — a correlated resolution still toasts.)
+        if (eventModel.SuppressToast)
             return Task.CompletedTask;
 
         // Same gate for live and backfilled messages: pause, below-min-priority and

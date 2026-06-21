@@ -72,6 +72,8 @@ public sealed partial class FeedViewModel : ObservableObject
         // and observable state directly — no Dispatcher.Invoke here.
         bus.Subscribe<MessageInserted>(this, e => OnMessageInserted(e.Message), ThreadOption.UIThread);
         bus.Subscribe<MessagesDeleted>(this, OnMessagesDeleted, ThreadOption.UIThread);
+        // A message was retroactively hidden (a problem folded by its resolution).
+        bus.Subscribe<MessageSuppressed>(this, OnMessageSuppressed, ThreadOption.UIThread);
 
         // Topic renamed / server-moved / enabled flip — re-enrich its rows and, if it's
         // the current topic, refresh the header + Reconnect button.
@@ -189,6 +191,19 @@ public sealed partial class FeedViewModel : ObservableObject
             // Broad/unscoped deletion (all, retention) — re-sync from the DB.
             _ = ReloadAsync();
         }
+    }
+
+    private void OnMessageSuppressed(MessageSuppressed e)
+    {
+        // Unless we're showing suppressed rows, drop the now-hidden message from the feed.
+        if (ShowSuppressed) return;
+        for (var i = Messages.Count - 1; i >= 0; i--)
+            if (Messages[i].MessageId == e.MessageId)
+            {
+                Messages.RemoveAt(i);
+                break;
+            }
+        IsEmpty = Messages.Count == 0;
     }
 
     private void OnTopicUpdated(TopicSettings topic)

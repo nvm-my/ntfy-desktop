@@ -289,13 +289,17 @@ public sealed class ConnectionManager : IAsyncDisposable
         // aren't new and must not reach the toast/summary path (the only consumer of
         // NtfyMessageReceived), or every reconnect would show a phantom "while you were
         // away" summary for the re-sent boundary message.
-        var isNew = _history.Insert(incoming.Message, conn.TopicId, serverId, verdict.Suppress);
+        var isNew = _history.Insert(incoming.Message, conn.TopicId, serverId, verdict.HideFromFeed);
         if (!isNew) return;
 
         // Apply incident side-effects (open/resolve) once, for the new message only.
         _rules.ApplyIncidentSideEffects(verdict);
 
-        new NtfyMessageReceived(incoming.Message, conn.TopicId, incoming.IsBackfill, verdict.Suppress)
+        // A resolution folds its problem out of the feed: retroactively hide that row.
+        if (verdict.DismissMessageId is { } dismissId)
+            _history.SuppressMessage(dismissId);
+
+        new NtfyMessageReceived(incoming.Message, conn.TopicId, incoming.IsBackfill, verdict.SuppressToast)
             .PublishAsync();
     }
 

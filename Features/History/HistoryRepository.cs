@@ -409,6 +409,36 @@ public class HistoryRepository
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Retroactively hides an already-stored message from the feed (sets its suppressed
+    /// flag). Used when a correlated resolution folds the original problem away. Publishes
+    /// <see cref="MessageSuppressed"/> (carrying the row's topic id) only when a row
+    /// actually flipped, so the feed drops it and the unread count re-seeds. No-op when the
+    /// message is unknown or already hidden.
+    /// </summary>
+    public void SuppressMessage(string messageId)
+    {
+        using var conn = Open();
+
+        // Read the topic id first: it's needed for the event, and confirms the row exists
+        // and isn't already suppressed (so we don't publish a no-op signal).
+        Guid topicId;
+        using (var read = conn.CreateCommand())
+        {
+            read.CommandText = "SELECT topic_id FROM messages WHERE message_id = @mid AND suppressed = 0 LIMIT 1";
+            read.Parameters.AddWithValue("@mid", messageId);
+            var result = read.ExecuteScalar();
+            if (result is null or DBNull) return;
+            topicId = Guid.TryParse(result.ToString(), out var g) ? g : Guid.Empty;
+        }
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE messages SET suppressed = 1 WHERE message_id = @mid";
+        cmd.Parameters.AddWithValue("@mid", messageId);
+        if (cmd.ExecuteNonQuery() > 0)
+            _ = new MessageSuppressed(topicId, messageId).PublishAsync();
+    }
+
     public void DeleteAll(MessageDeletionSource source)
     {
         using var conn = Open();
